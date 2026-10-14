@@ -1,246 +1,289 @@
 import os
 import json
 import streamlit as st
+import plotly.graph_objects as go
 from PIL import Image
 import google.generativeai as genai
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 설정 및 디자인
+# 1. 페이지 기본 설정 및 Custom CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="클린동네 - AI 분리수거 점수제",
-    page_icon="♻️",
+    page_title="분리수거ON - 아파트 동별 누적 점수",
+    page_icon="🌱",
     layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("♻️ 클린동네: AI 스마트 분리수거 점수제")
-st.caption("쓰레기통을 AI로 스캔하고 점수를 쌓아 우리 동네에 생필품과 간식을 선물하세요!")
+# 이미지 디자인 느낌의 스타일 적용
+st.markdown("""
+    <style>
+    .main-header {
+        text-align: center;
+        background-color: #f4fbf7;
+        padding: 15px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+    }
+    .rank-card {
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        background-color: white;
+    }
+    .rank-1 {
+        border: 2px solid #fbc02d;
+        background-color: #fffde7;
+    }
+    .rank-2 {
+        border: 1px solid #cfd8dc;
+        background-color: #f8f9fa;
+    }
+    .rank-3 {
+        border: 1px solid #ffe0b2;
+        background-color: #fff8e1;
+    }
+    .badge-plus {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: bold;
+    }
+    .mistake-box {
+        background-color: #fff5f5;
+        border-radius: 12px;
+        padding: 12px;
+        margin-top: 5px;
+        border-left: 4px solid #ff5252;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. 세션 상태(Session State) 초기화 (데이터 유지)
+# 2. 세션 상태 (동별 데이터 초기화)
 # -----------------------------------------------------------------------------
-if "neighborhood_scores" not in st.state_counts if hasattr(st, "state_counts") else "neighborhood_scores" not in st.session_state:
-    st.session_state.neighborhood_scores = {
-        "성수1동": 1250,
-        "역삼1동": 980,
-        "한남동": 840,
-        "연남동": 620,
-        "판교동": 450
+if "dong_data" not in st.session_state:
+    st.session_state.dong_data = {
+        "101동 & 102동": {
+            "score": 12480,
+            "change": 120,
+            "correct_ratio": 78,
+            "incorrect_ratio": 22,
+            "mistakes": [
+                ("페트병 라벨 제거 안 함", "일반쓰레기로 분류됨"),
+                ("캔과 일반쓰레기 혼합", "겉은 재활용 가능")
+            ]
+        },
+        "103동 & 104동": {
+            "score": 11230,
+            "change": 95,
+            "correct_ratio": 74,
+            "incorrect_ratio": 26,
+            "mistakes": [
+                ("음식물 묻은 플라스틱 용기", "재활용 불가"),
+                ("종이류에 비닐 코팅된 포장지", "일반쓰레기로 분류됨")
+            ]
+        },
+        "105동 & 106동": {
+            "score": 10870,
+            "change": 80,
+            "correct_ratio": 69,
+            "incorrect_ratio": 31,
+            "mistakes": [
+                ("유리병 뚜껑 미분리", "일반쓰레기로 분류됨"),
+                ("건전지 혼합 배출", "유해폐기물로 분류")
+            ]
+        },
+        "107동 & 108동": {
+            "score": 9320,
+            "change": 60,
+            "correct_ratio": 72,
+            "incorrect_ratio": 28,
+            "mistakes": [
+                ("비닐봉투에 재활용품 담기", "분리배출 시도 불가"),
+                ("스티로폼 이물질 혼입", "재활용 불가")
+            ]
+        }
     }
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+# -----------------------------------------------------------------------------
+# 3. 도넛 차트 생성 함수
+# -----------------------------------------------------------------------------
+def create_donut_chart(correct, incorrect):
+    fig = go.Figure(data=[go.Pie(
+        labels=['잘 분리배출', '잘못 배출'],
+        values=[correct, incorrect],
+        hole=.65,
+        marker_colors=['#00a86b', '#ff6b6b'],
+        textinfo='none',
+        hoverinfo='label+percent'
+    )])
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(t=0, b=0, l=0, r=0),
+        height=130,
+        width=130,
+        annotations=[dict(
+            text=f"<b>{correct}%</b><br><span style='font-size:10px;color:gray;'>잘 분리배출</span>",
+            x=0.5, y=0.5, font_size=14, showarrow=False
+        )]
+    )
+    return fig
 
 # -----------------------------------------------------------------------------
-# 3. Gemini API 설정 및 AI 분석 함수
+# 4. Gemini AI 분석 함수 (gemini-2.5-flash-lite)
 # -----------------------------------------------------------------------------
-def get_gemini_api_key():
-    """Secrets 또는 환경변수에서 API 키 로드"""
-    if "GEMINI_API_KEY" in st.secrets:
-        return st.secrets["GEMINI_API_KEY"]
-    return os.environ.get("GEMINI_API_KEY", "")
-
 def analyze_waste_image(image):
-    """Gemini AI를 활용한 쓰레기 이미지 분석"""
-    api_key = get_gemini_api_key()
-    
+    api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
     if not api_key:
-        return None, "GEMINI_API_KEY가 설정되지 않았습니다. Secrets를 확인해주세요."
+        return None, "GEMINI_API_KEY가 설정되지 않았습니다."
     
     try:
         genai.configure(api_key=api_key)
-        # 요구사항에 명시된 gemini-2.5-flash-lite 사용
         model = genai.GenerativeModel("gemini-2.5-flash-lite")
         
         prompt = """
-        당신은 분리수거 전문 AI입니다. 제공된 쓰레기통/쓰레기 사진을 분석하여 오직 아래 JSON 형식으로만 답변해주세요.
-        다른 설명이나 마크다운 텍스트(예: ```json)는 절대 포함하지 마세요.
+        당신은 분리수거 전문 AI입니다. 쓰레기통/쓰레기 사진을 분석하여 오직 아래 JSON 형식으로만 답변하세요.
+        ```json 같은 마크다운 태그를 포함하지 말고 pure JSON만 출력하세요.
 
         {
-            "correct_ratio": 이미지 내 잘 분리배출된 쓰레기 비율 (0~100 사이 정수),
-            "incorrect_ratio": 잘못 배출된 쓰레기 비율 (0~100 사이 정수, 두 합은 100이 되도록),
-            "score": 이번 배출에 부여할 점수 (0~100 사이 정수),
-            "main_mistakes": ["잘못 배출된 대표 쓰레기 1", "잘못 배출된 대표 쓰레기 2"],
-            "improvement_tips": ["올바른 분리배출 방법 조언 1", "올바른 분리배출 방법 조언 2"]
+            "correct_ratio": 잘 분리배출된 비율 (0~100 사이 정수),
+            "incorrect_ratio": 잘못 배출된 비율 (0~100 사이 정수),
+            "added_score": 부여할 추가 점수 (10~150 사이 정수),
+            "mistakes": [
+                ["잘못 배출된 항목명 1", "사유 설명 1"],
+                ["잘못 배출된 항목명 2", "사유 설명 2"]
+            ]
         }
         """
-        
         response = model.generate_content([prompt, image])
-        
-        # JSON 응답 파싱 및 정제
-        cleaned_text = response.text.strip()
-        if cleaned_text.startswith("```"):
-            cleaned_text = cleaned_text.split("\n", 1)[1]
-            if cleaned_text.endswith("```"):
-                cleaned_text = cleaned_text.rsplit("\n", 1)[0]
-            if cleaned_text.startswith("json"):
-                cleaned_text = cleaned_text[4:].strip()
-                
-        result = json.loads(cleaned_text)
-        return result, None
-
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("\n", 1)[0]
+            if text.startswith("json"):
+                text = text[4:].strip()
+        return json.loads(text), None
     except Exception as e:
-        return None, f"AI 분석 중 오류가 발생했습니다: {str(e)}"
+        return None, str(e)
 
 # -----------------------------------------------------------------------------
-# 4. 사이드바 - 동 선택 & 메뉴
+# 5. 헤더 화면
 # -----------------------------------------------------------------------------
-st.sidebar.header("📍 내 정보 설정")
-user_dong = st.sidebar.selectbox(
-    "소속 동을 선택하세요",
-    options=list(st.session_state.neighborhood_scores.keys()) + ["기타/신규동 추가"],
-    index=0
-)
-
-if user_dong == "기타/신규동 추가":
-    new_dong = st.sidebar.text_input("동 이름을 입력하세요 (예: 청담동)")
-    if new_dong:
-        user_dong = new_dong
-        if user_dong not in st.session_state.neighborhood_scores:
-            st.session_state.neighborhood_scores[user_dong] = 0
+col_h1, col_h2 = st.columns([4, 1])
+with col_h1:
+    st.title("🌱 분리수거 ON")
+    st.caption("작은 실천이 만드는 더 깨끗한 우리 동네 | 함께하는 분리수거! 더 좋은 우리 아파트!")
+with col_h2:
+    selected_tab = st.selectbox("메뉴 선택", ["🏠 홈", "📸 AI 쓰레기 스캔", "🎁 보상함", "👤 마이페이지"])
 
 # -----------------------------------------------------------------------------
-# 5. 메인 탭 구성
+# 6. 메인 화면 - 🏠 홈 (이미지 디자인 일치)
 # -----------------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["📸 AI 쓰레기통 스캔", "🏆 동별 리더보드 & 보상", "💡 올바른 분리배출 팁"])
+if selected_tab == "🏠 홈":
+    st.subheader("🏆 아파트 동별 누적 점수 순위")
+    st.caption("지금까지의 누적 점수로 집계된 동별 순위입니다.")
 
-# --- TAB 1: AI 스캔 및 피드백 ---
-with tab1:
-    st.subheader("쓰레기통 스캔 및 분석")
-    st.write(f"현재 선택된 동: **{user_dong}**")
-    
-    uploaded_file = st.file_uploader("쓰레기통 또는 배출할 쓰레기 사진을 업로드하세요", type=["jpg", "jpeg", "png"])
-    
-    col1, col2 = st.columns([1, 1])
-    
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        with col1:
-            st.image(image, caption="업로드된 쓰레기 사진", use_container_width=True)
-            
-        with col2:
-            if st.button("🔍 AI 분석 시작하기", type="primary", use_container_width=True):
-                with st.spinner("Gemini AI가 쓰레기 배출 상태를 분석 중입니다..."):
-                    result, error = analyze_waste_image(image)
-                    
-                    if error:
-                        st.error(error)
-                        st.warning("⚠️ API 키가 없거나 오류 발생 시 아래 '테스트용 시뮬레이션'으로 결과를 확인할 수 있습니다.")
-                    elif result:
-                        st.success("분석이 완료되었습니다!")
-                        
-                        # 점수 및 비율 표시
-                        score = result.get("score", 0)
-                        correct = result.get("correct_ratio", 0)
-                        incorrect = result.get("incorrect_ratio", 0)
-                        
-                        st.metric(label="📊 이번 배출 획득 점수", value=f"{score}점")
-                        
-                        # 비율 바 표시
-                        st.write(f"✅ 잘 된 배출: **{correct}%** | ❌ 잘못된 배출: **{incorrect}%**")
-                        st.progress(correct / 100)
-                        
-                        # 주요 잘못 배출된 항목
-                        st.subheader("❌ 주요 오배출 항목")
-                        mistakes = result.get("main_mistakes", [])
-                        if mistakes:
-                            for item in mistakes:
-                                st.write(f"- {item}")
-                        else:
-                            st.write("잘못 배출된 항목이 없습니다! 완벽합니다.")
-                            
-                        # 개선 팁
-                        st.subheader("💡 올바른 배출 가이드")
-                        tips = result.get("improvement_tips", [])
-                        for tip in tips:
-                            st.info(f"👉 {tip}")
-                            
-                        # 점수 적립
-                        st.session_state.neighborhood_scores[user_dong] += score
-                        st.balloons()
-                        st.success(f"🎉 {user_dong}에 **{score}점**이 성공적으로 적립되었습니다!")
+    # 점수순 정렬
+    sorted_dongs = sorted(st.session_state.dong_data.items(), key=lambda x: x[1]["score"], reverse=True)
 
-    else:
-        st.info("사진을 업로드하면 AI가 분석을 시작합니다. (테스트를 위한 임시 체험 기능 제공)")
-        if st.button("🧪 시뮬레이션 테스트 실행 (사진 없이 테스트)"):
-            sample_result = {
-                "correct_ratio": 75,
-                "incorrect_ratio": 25,
-                "score": 75,
-                "main_mistakes": ["페트병에 비닐 라벨이 붙어있음", "음료 용기에 내용물 미헹굼"],
-                "improvement_tips": ["페트병 라벨을 제거 후 투명 페트병 전용 수거함에 넣어주세요.", "용기 내부를 물로 깨끗이 헹궈 배출해주세요."]
-            }
-            st.metric(label="📊 이번 배출 획득 점수", value="75점")
-            st.write("✅ 잘 된 배출: **75%** | ❌ 잘못된 배출: **25%**")
-            st.progress(0.75)
-            
-            st.subheader("❌ 주요 오배출 항목")
-            for item in sample_result["main_mistakes"]:
-                st.write(f"- {item}")
-                
-            st.subheader("💡 올바른 배출 가이드")
-            for tip in sample_result["improvement_tips"]:
-                st.info(f"👉 {tip}")
-                
-            st.session_state.neighborhood_scores[user_dong] += 75
-            st.success(f"🎉 시뮬레이션 결과로 {user_dong}에 **75점**이 적립되었습니다!")
+    # 1~3위 포디움 시각화 (2위 - 1위 - 3위 순 배치)
+    col_rank2, col_rank1, col_rank3 = st.columns([1, 1.1, 1])
 
-# --- TAB 2: 동별 리더보드 & 보상 혜택 ---
-with tab2:
-    st.subheader("🏆 우리 동네 분리수거 랭킹")
-    st.write("가장 높은 점수를 기록한 동네 주민분들께 매월 소소한 생필품과 간식을 드립니다!")
-    
-    # 점수 순으로 정렬
-    sorted_scores = sorted(st.session_state.neighborhood_scores.items(), key=lambda x: x[1], reverse=0 == 0, reverse=True)
-    
-    top_dong, top_score = sorted_scores[0]
-    
-    st.accent = st.markdown(
-        f"""
-        <div style="background-color:#e8f5e9; padding:20px; border-radius:10px; border:2px solid #2e7d32; text-align:center;">
-            <h2 style="color:#2e7d32; margin:0;">🥇 현재 1위: {top_dong} ({top_score}점)</h2>
-            <p style="margin-top:10px; color:#333;">🎁 <b>이번 달 지급 예정 보상:</b> 쓰레기 종량제 봉투(20L) 10매 세트 & 주민센터 카페 아메리카노 쿠폰</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    if len(sorted_dongs) >= 3:
+        # 2위
+        with col_rank2:
+            d_name, d_info = sorted_dongs[1]
+            st.markdown(f"""
+                <div class="rank-card rank-2">
+                    <span style="font-size:24px;">🥈</span>
+                    <h4 style="margin:5px 0;">{d_name}</h4>
+                    <h3 style="margin:5px 0; color:#333;">{d_info['score']:,}점</h3>
+                    <span class="badge-plus">▲ +{d_info['change']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # 1위
+        with col_rank1:
+            d_name, d_info = sorted_dongs[0]
+            st.markdown(f"""
+                <div class="rank-card rank-1">
+                    <span style="font-size:28px;">👑 🥇</span>
+                    <h3 style="margin:5px 0; color:#1b5e20;">{d_name}</h3>
+                    <h2 style="margin:5px 0; color:#d81b60;">{d_info['score']:,}점</h2>
+                    <span class="badge-plus">▲ +{d_info['change']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # 3위
+        with col_rank3:
+            d_name, d_info = sorted_dongs[2]
+            st.markdown(f"""
+                <div class="rank-card rank-3">
+                    <span style="font-size:24px;">🥉</span>
+                    <h4 style="margin:5px 0;">{d_name}</h4>
+                    <h3 style="margin:5px 0; color:#333;">{d_info['score']:,}점</h3>
+                    <span class="badge-plus">▲ +{d_info['change']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+
     st.write("")
-    
-    # 랭킹 테이블 표시
-    cols = st.columns([1, 2, 2])
-    cols[0].write("**순위**")
-    cols[1].write("**동 이름**")
-    cols[2].write("**누적 점수**")
-    
-    for rank, (dong, score) in enumerate(sorted_scores, 1):
-        medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}위"
-        cols = st.columns([1, 2, 2])
-        cols[0].write(medal)
-        cols[1].write(f"**{dong}**" if dong == user_dong else dong)
-        cols[2].write(f"{score} 점")
+    st.divider()
 
-# --- TAB 3: 분리수거 가이드 ---
-with tab3:
-    st.subheader("💡 자주 실수하는 올바른 분리배출 방법")
+    # 동별 분리배출 분석 섹션 (이미지 하단 디자인)
+    st.subheader("🔍 동별 분리배출 분석")
+    st.caption("AI가 분석한 각 동의 분리배출 현황과 잘못 배출한 쓰레기 유형입니다.")
+
+    for idx, (dong_name, data) in enumerate(sorted_dongs, 1):
+        with st.container():
+            c1, c2, c3 = st.columns([1.5, 1.2, 2.3])
+            
+            # 1. 동 이름 및 점수
+            with c1:
+                st.markdown(f"### {idx}. {dong_name}")
+                st.markdown(f"## **{data['score']:,}점**")
+                st.markdown(f"<span class='badge-plus'>▲ +{data['change']}</span>", unsafe_allow_html=True)
+
+            # 2. 도넛 차트
+            with c2:
+                fig = create_donut_chart(data['correct_ratio'], data['incorrect_ratio'])
+                st.plotly_chart(fig, use_container_width=False, config={'displayModeBar': False})
+
+            # 3. 주요 잘못 배출한 쓰레기 피드백 박스
+            with c3:
+                st.markdown("##### 🚨 주요 잘못 배출한 쓰레기")
+                for mistake, reason in data['mistakes']:
+                    st.markdown(f"""
+                        <div class="mistake-box">
+                            <strong>• {mistake}</strong><br>
+                            <span style="font-size: 0.85rem; color: #666;">({reason})</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+            st.divider()
+
+# -----------------------------------------------------------------------------
+# 7. AI 쓰레기 스캔 탭
+# -----------------------------------------------------------------------------
+elif selected_tab == "📸 AI 쓰레기 스캔":
+    st.subheader("📸 AI 쓰레기통 스캔 & 분석")
     
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("""
-        ### 🥤 투명 페트병
-        - **내용물 비우기**: 물로 깨끗이 헹굽니다.
-        - **라벨 제거**: 비닐 라벨을 떼어 비닐류로 배출합니다.
-        - **압착 및 뚜껑 닫기**: 찌그러뜨린 후 뚜껑을 닫아 배출합니다.
-        """)
+    target_dong = st.selectbox("점수를 적립할 동을 선택하세요", list(st.session_state.dong_data.keys()))
+    uploaded_file = st.file_uploader("쓰레기통 사진을 업로드하세요", type=["jpg", "png", "jpeg"])
+    
+    if uploaded_file:
+        img = Image.open(uploaded_file)
+        st.image(img, caption="스캔 대상 이미지", width=350)
         
-        st.markdown("""
-        ### 📦 택배 상자/종이류
-        - **테이프 및 운송장 제거**: 비닐 테이프와 운송장 스티커를 반드시 떼어냅니다.
-        - **상부/하부 접기**: 펼쳐서 납작하게 눌러 배출합니다.
-        """)
-
-    with col_b:
-        st.markdown("""
-        ### 🍕 음식물 묻은 용기 (컵라면 등)
-        - **세척 불가능 시**: 양념이 스며든 스티로폼이나 종이 용기는 **일반 쓰레기(종량제 봉투)**로 배출합니다.
-        - **햇빛 건조**: 국물 자국은 햇빛에 말리면 하얗게 탈색되어 재활용이 가능해집니다.
-        """)
+        if st.button("AI 분석 실행하기", type="primary"):
+            with st.spinner("AI가 쓰레기 비율 및 잘못된 배출 항목을 분석 중입니다..."):
+                res, err = analyze_waste_image(img)
+                if err:
+                    st.error(f"분석 중 오류가 발생했습니다: {err}")
+                    st.info("💡 Secrets 설정에서 GEMINI_API_KEY를 확인하세요.")
+                else:
+                    st.success("분석이 완료되었습니다!")
+                    
+                    added = res.get("added_score", 50)
+                    correct = res.get("correct_ratio
