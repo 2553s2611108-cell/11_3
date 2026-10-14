@@ -9,22 +9,14 @@ import google.generativeai as genai
 # 1. 페이지 기본 설정 및 Custom CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="분리수거ON - 아파트 동별 누적 점수",
+    page_title="분리수거 ON - 아파트 동별 누적 점수",
     page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 이미지 디자인 느낌의 스타일 적용
 st.markdown("""
     <style>
-    .main-header {
-        text-align: center;
-        background-color: #f4fbf7;
-        padding: 15px;
-        border-radius: 15px;
-        margin-bottom: 20px;
-    }
     .rank-card {
         border-radius: 16px;
         padding: 20px;
@@ -55,7 +47,7 @@ st.markdown("""
     .mistake-box {
         background-color: #fff5f5;
         border-radius: 12px;
-        padding: 12px;
+        padding: 10px;
         margin-top: 5px;
         border-left: 4px solid #ff5252;
     }
@@ -134,7 +126,7 @@ def create_donut_chart(correct, incorrect):
     return fig
 
 # -----------------------------------------------------------------------------
-# 4. Gemini AI 분석 함수 (gemini-2.5-flash-lite)
+# 4. Gemini AI 분석 함수
 # -----------------------------------------------------------------------------
 def analyze_waste_image(image):
     api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
@@ -147,12 +139,12 @@ def analyze_waste_image(image):
         
         prompt = """
         당신은 분리수거 전문 AI입니다. 쓰레기통/쓰레기 사진을 분석하여 오직 아래 JSON 형식으로만 답변하세요.
-        ```json 같은 마크다운 태그를 포함하지 말고 pure JSON만 출력하세요.
+        마크다운 태그 없이 순수 JSON 텍스트만 출력해야 합니다.
 
         {
-            "correct_ratio": 잘 분리배출된 비율 (0~100 사이 정수),
-            "incorrect_ratio": 잘못 배출된 비율 (0~100 사이 정수),
-            "added_score": 부여할 추가 점수 (10~150 사이 정수),
+            "correct_ratio": 75,
+            "incorrect_ratio": 25,
+            "added_score": 100,
             "mistakes": [
                 ["잘못 배출된 항목명 1", "사유 설명 1"],
                 ["잘못 배출된 항목명 2", "사유 설명 2"]
@@ -180,16 +172,20 @@ with col_h2:
     selected_tab = st.selectbox("메뉴 선택", ["🏠 홈", "📸 AI 쓰레기 스캔", "🎁 보상함", "👤 마이페이지"])
 
 # -----------------------------------------------------------------------------
-# 6. 메인 화면 - 🏠 홈 (이미지 디자인 일치)
+# 6. 메인 화면 - 🏠 홈
 # -----------------------------------------------------------------------------
 if selected_tab == "🏠 홈":
     st.subheader("🏆 아파트 동별 누적 점수 순위")
     st.caption("지금까지의 누적 점수로 집계된 동별 순위입니다.")
 
-    # 점수순 정렬
-    sorted_dongs = sorted(st.session_state.dong_data.items(), key=lambda x: x[1]["score"], reverse=True)
+    # 문법 오류가 수정된 정렬 코드
+    sorted_dongs = sorted(
+        st.session_state.dong_data.items(),
+        key=lambda item: item[1]["score"],
+        reverse=True
+    )
 
-    # 1~3위 포디움 시각화 (2위 - 1위 - 3위 순 배치)
+    # 1~3위 배치
     col_rank2, col_rank1, col_rank3 = st.columns([1, 1.1, 1])
 
     if len(sorted_dongs) >= 3:
@@ -232,7 +228,7 @@ if selected_tab == "🏠 홈":
     st.write("")
     st.divider()
 
-    # 동별 분리배출 분석 섹션 (이미지 하단 디자인)
+    # 분석 카드
     st.subheader("🔍 동별 분리배출 분석")
     st.caption("AI가 분석한 각 동의 분리배출 현황과 잘못 배출한 쓰레기 유형입니다.")
 
@@ -240,18 +236,15 @@ if selected_tab == "🏠 홈":
         with st.container():
             c1, c2, c3 = st.columns([1.5, 1.2, 2.3])
             
-            # 1. 동 이름 및 점수
             with c1:
                 st.markdown(f"### {idx}. {dong_name}")
                 st.markdown(f"## **{data['score']:,}점**")
                 st.markdown(f"<span class='badge-plus'>▲ +{data['change']}</span>", unsafe_allow_html=True)
 
-            # 2. 도넛 차트
             with c2:
                 fig = create_donut_chart(data['correct_ratio'], data['incorrect_ratio'])
                 st.plotly_chart(fig, use_container_width=False, config={'displayModeBar': False})
 
-            # 3. 주요 잘못 배출한 쓰레기 피드백 박스
             with c3:
                 st.markdown("##### 🚨 주요 잘못 배출한 쓰레기")
                 for mistake, reason in data['mistakes']:
@@ -272,18 +265,4 @@ elif selected_tab == "📸 AI 쓰레기 스캔":
     target_dong = st.selectbox("점수를 적립할 동을 선택하세요", list(st.session_state.dong_data.keys()))
     uploaded_file = st.file_uploader("쓰레기통 사진을 업로드하세요", type=["jpg", "png", "jpeg"])
     
-    if uploaded_file:
-        img = Image.open(uploaded_file)
-        st.image(img, caption="스캔 대상 이미지", width=350)
-        
-        if st.button("AI 분석 실행하기", type="primary"):
-            with st.spinner("AI가 쓰레기 비율 및 잘못된 배출 항목을 분석 중입니다..."):
-                res, err = analyze_waste_image(img)
-                if err:
-                    st.error(f"분석 중 오류가 발생했습니다: {err}")
-                    st.info("💡 Secrets 설정에서 GEMINI_API_KEY를 확인하세요.")
-                else:
-                    st.success("분석이 완료되었습니다!")
-                    
-                    added = res.get("added_score", 50)
-                    correct = res.get("correct_ratio
+    if uploaded_
