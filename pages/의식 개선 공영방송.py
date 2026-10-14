@@ -131,4 +131,3 @@ if menu == "🎙️ 오늘의 아침 방송 생성":
 # 
 streamlit
 google-genai
-GEMINI_API_KEY = "발급받은_실제_API_키_입력"
