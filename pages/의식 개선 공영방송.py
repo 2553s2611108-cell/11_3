@@ -1,161 +1,111 @@
 import streamlit as st
-import time
+from google import genai
+from gtts import gTTS
+import io
 
-# 페이지 설정
+# 1. 페이지 기본 설정
 st.set_page_config(
-    page_title="K-재활용 공영방송 | 의식 개선 뉴스 센터",
-    page_icon="♻️",
+    page_title="아파트 쓰레기 배출 안내 방송 생성기",
+    page_icon="📢",
     layout="wide"
 )
 
-# 커스텀 CSS (공영방송 자막 & 뉴스 스타일)
-st.markdown("""
-    <style>
-    .news-header {
-        background-color: #0b3c5d;
-        color: white;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-        font-weight: bold;
-        font-size: 26px;
-        margin-bottom: 20px;
-    }
-    .ticker {
-        background-color: #d9534f;
-        color: white;
-        padding: 8px 15px;
-        font-weight: bold;
-        border-radius: 4px;
-        margin-bottom: 25px;
-    }
-    .stat-card {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-left: 5px solid #0b3c5d;
-        border-radius: 4px;
-        margin-bottom: 10px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# 2. Gemini API 클라이언트 초기화 함수
+def get_gemini_client():
+    if "GEMINI_API_KEY" not in st.secrets:
+        st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다. Secrets 설정을 확인해 주세요.")
+        st.stop()
+    return genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 메인 타이틀
-st.markdown("<div class='news-header'>📺 K-재활용 공영방송 : 올바른 분리배출 특별기획</div>", unsafe_allow_html=True)
+# 3. 메인 화면 헤더
+st.title("📢 아파트 쓰레기 배출 의식 개선 공영방송 도우미")
+st.caption("올바른 쓰레기 배출 문화를 위한 맞춤형 아침 방송 원고 및 음성 생성 서비스")
+st.markdown("---")
 
-# 속보 전광판
-st.markdown("<div class='ticker'>🚨 [속보] 무분별한 혼합 배출로 재활용품 선별장 마비 심각... 관리 인력 고충 증대</div>", unsafe_allow_html=True)
+# 4. 사이드바 - 방송 설정 입력
+st.sidebar.header("🎛️ 방송 설정")
 
-# 사이드바 메뉴
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3299/3299935.png", width=100)
-st.sidebar.title("📺 방송 편성표")
-menu = st.sidebar.radio(
-    "시청할 프로그램을 선택하세요:",
-    ["1. [뉴스데스크] 분리배출 실태", "2. [특집기획] 잘못 배출하면 생기는 일", "3. [시민참여] O/X 환경 퀴즈"]
+topic = st.sidebar.selectbox(
+    "방송 주제/이슈 선택",
+    [
+        "재활용품 올바른 분리배출 안내 (페트박스, 라벨 제거 등)",
+        "음식물 쓰레기 물기 제거 및 배출 방법",
+        "대형 폐기물 스티커 부착 및 무단투기 방지",
+        "종량제 봉투 정량 사용 및 지정 장소 배출",
+        "주말/연휴 끝 올바른 쓰레기장 이용 매너",
+        "직접 입력"
+    ]
 )
 
-# ----------------------------------------------------
-# 1. 뉴스데스크
-# ----------------------------------------------------
-if menu == "1. [뉴스데스크] 분리배출 실태":
-    st.subheader("📰 [보도] 잘못된 분리배출이 만드는 '관리의 경고'")
-    st.write("우리가 무심코 버린 쓰레기가 재활용품 선별장과 아파트 관리원분들에게 미치는 영향입니다.")
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="📊 수거 쓰레기 중 잔재물 비율", value="38.5%", delta="오염으로 인한 폐기")
-    with col2:
-        st.metric(label="💸 연간 불필요한 처리 비용", value="약 1,200억 원", delta="+12% 증가", delta_color="inverse")
-    with col3:
-        st.metric(label="⏱️ 관리원 1인당 추가 작업시간", value="일 평균 2.5시간", delta="선별 작업 부담")
+if topic == "직접 입력":
+    custom_topic = st.sidebar.text_input("원하는 방송 주제를 입력하세요", placeholder="예: 박스 테이프 제거 후 배출 안내")
+else:
+    custom_topic = topic
 
-    st.markdown("---")
-    st.markdown("### 📽️ [현장 취재] 주요 관리 어려움 TOP 3")
-    
-    tab1, tab2, tab3 = st.tabs(["🔴 음식물 묻은 용기", "🔴 라벨 미제거 페트병", "🔴 혼합 배출(이물질)"])
-    
-    with tab1:
-        st.warning("⚠️ **관리 현장의 목소리:** '양념이 묻은 컵라면 용기나 플라스틱은 재활용이 불가능해 전량 세척하거나 일반쓰레기로 재분류해야 합니다.'")
-        st.info("💡 **올바른 배출 방법:** 물로 깨끗이 헹군 후 배출하고, 이물질이 지워지지 않으면 일반쓰레기(종량제 봉투)로 버려주세요.")
-        
-    with tab2:
-        st.warning("⚠️ **관리 현장의 목소리:** '투명 페트병의 비닐 라벨을 떼지 않으면 재사용 등급이 떨어지고, 세척 및 절단 기계 고장의 원인이 됩니다.'")
-        st.info("💡 **올바른 배출 방법:** 라벨을 떼어 비닐류로 버리고, 페트병은 압착하여 뚜껑을 닫아 배출합니다.")
+tone = st.sidebar.radio(
+    "방송 어조 선택",
+    ["정중하고 친절한 어조", "밝고 활기찬 어조", "단호하고 명확한 어조 (계도용)"]
+)
 
-    with tab3:
-        st.warning("⚠️ **관리 현장의 목소리:** '종이 상자에 테이프나 운송장이 붙어있거나, 상자 안에 스티로폼을 넣은 채 버리면 일일이 손으로 다 뜯어내야 합니다.'")
-        st.info("💡 **올바른 배출 방법:** 송장과 테이프를 완전히 제거하고 상자는 펼쳐서 배출해주세요.")
+target_length = st.sidebar.select_slider(
+    "방송 분량 (예상 소요 시간)",
+    options=["30초 분량 (간결함)", "1분 분량 (적당함)", "1분 30초 분량 (상세함)"],
+    value="1분 분량 (적당함)"
+)
 
-# ----------------------------------------------------
-# 2. 특집기획
-# ----------------------------------------------------
-elif menu == "2. [특집기획] 잘못 배출하면 생기는 일":
-    st.subheader("🔍 [기획탐구] 내가 버린 쓰레기, 관리소에서는?")
-    st.write("품목을 선택하면 잘못 배출했을 때의 **관리상 문제점**과 **해결 가이드**를 보여드립니다.")
+# 5. 메인 영역 - 원고 생성 버튼 및 결과 출력
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("📝 원고 생성 설정 확인")
+    st.write(f"• **주제:** {custom_topic}")
+    st.write(f"• **어조:** {tone}")
+    st.write(f"• **분량:** {target_length}")
     
-    item = st.selectbox(
-        "버리려는 물품을 선택해보세요:",
-        ["선택하세요", "택배 상자 (테이프 부착)", "음식물 묻은 배달 용기", "투명 페트병 (라벨 부착)", "깨진 유리병", "건전지 / 보조배터리"]
-    )
-    
-    if item == "택배 상자 (테이프 부착)":
-        st.error("❌ **발생하는 문제:** 박스 재활용 시 테이프 이물질로 인해 재질 저하, 수거 거부 발생")
-        st.success("✅ **관리 개선 솔루션:** 테이프·운송장 제거 ➔ 상자 접어서 종이류 배출")
-    elif item == "음식물 묻은 배달 용기":
-        st.error("❌ **발생하는 문제:** 다른 깨끗한 플라스틱까지 오염시켜 전체 재활용 불가 및 악취 발생")
-        st.success("✅ **관리 개선 솔루션:** 내용물 씻기 ➔ 안 씻기면 종량제 봉투 배출")
-    elif item == "투명 페트병 (라벨 부착)":
-        st.error("❌ **발생하는 문제:** 수거 후 별도 인력이 일일이 라벨을 제거해야 함 (비용 및 시간 소요)")
-        st.success("✅ **관리 개선 솔루션:** 라벨 제거 ➔ 압착 후 전용 수거함 배출")
-    elif item == "깨진 유리병":
-        st.error("❌ **발생하는 문제:** 수거 및 관리 작업자의 인명 사고(베임, 다침) 위험 매우 높음")
-        st.success("✅ **관리 개선 솔루션:** 신문지로 싸서 불연성 마대(특수 종량제 봉투)에 배출")
-    elif item == "건전지 / 보조배터리":
-        st.error("❌ **발생하는 문제:** 일반 쓰레기나 플라스틱에 섞여 배출될 경우 수거 차량 및 처리장 화재 원인")
-        st.success("✅ **관리 개선 솔루션:** 전용 폐건전지 수거함에 별도 배출")
+    generate_btn = st.button("✨ 방송 원고 & 음성 생성하기", use_container_width=True, type="primary")
 
-# ----------------------------------------------------
-# 3. 시민참여 퀴즈
-# ----------------------------------------------------
-elif menu == "3. [시민참여] O/X 환경 퀴즈":
-    st.subheader("🧩 [시민참여] 올바른 분리배출 의식 테스트")
-    st.write("퀴즈를 풀고 환경을 지키는 '공영방송 인증 모범 시민'이 되어보세요!")
-    
-    score = 0
-    
-    q1 = st.radio("Q1. 씻기지 않는 컵라면 스티로폼 용기는 재활용에 버려야 한다?", ("선택하세요", "O", "X"))
-    if q1 == "X":
-        score += 1
-        st.caption("✨ 정답! 이물질이 제거되지 않는 용기는 종량제 봉투로 버려야 관리자분들의 2차 분류 수고를 줄입니다.")
-    elif q1 == "O":
-        st.caption("❌ 오답! 오염된 용기는 재활용이 안 되며, 다른 재활용품까지 오염시킵니다.")
-        
-    st.markdown("---")
-    q2 = st.radio("Q2. 깨진 유리병은 일반 유리병 수거함에 버려도 된다?", ("선택하세요", "O", "X"))
-    if q2 == "X":
-        score += 1
-        st.caption("✨ 정답! 깨진 유리는 관리자가 다칠 수 있으므로 신문지에 싸서 불연성 마대에 버려야 합니다.")
-    elif q2 == "O":
-        st.caption("❌ 오답! 관리원의 부상 위험이 높습니다.")
+# 세션 상태 초기화 (결과 유지용)
+if "script_text" not in st.session_state:
+    st.session_state.script_text = ""
+if "audio_bytes" not in st.session_state:
+    st.session_state.audio_bytes = None
 
-    st.markdown("---")
-    q3 = st.radio("Q3. 페트병의 비닐 라벨은 반드시 떼어서 비닐류로 따로 버려야 한다?", ("선택하세요", "O", "X"))
-    if q3 == "O":
-        score += 1
-        st.caption("✨ 정답! 라벨을 제거해야 고품질 리사이클링이 가능합니다.")
-    elif q3 == "X":
-        st.caption("❌ 오답! 라벨 미제거 시 수거 및 재활용 과정에서 심각한 차질을 빚습니다.")
+if generate_btn:
+    if not custom_topic.strip():
+        st.warning("방송 주제를 입력해 주세요.")
+    else:
+        with st.spinner("Gemini가 명확하고 친근한 방송 원고를 작성하고 있습니다..."):
+            try:
+                client = get_gemini_client()
+                
+                # 프롬프트 구성
+                prompt = f"""
+                당신은 아파트 관리사무소의 공영방송 담당자입니다.
+                입주민들의 쓰레기 배출 의식을 개선하고 올바른 분리수거를 독려하기 위한 아침 방송 원고를 작성해 주세요.
 
-    st.markdown("---")
-    if st.button("결과 확인 및 인증서 발급"):
-        with st.spinner("결과 분석 중..."):
-            time.sleep(1)
-        st.balloons()
-        st.success(f"🎊 3문제 중 {score}문제를 맞추셨습니다!")
-        if score == 3:
-            st.info("🏆 **[K-재활용 공영방송 인증] 최우수 환경 모범 시민입니다!**\n\n여러분의 올바른 배출이 관리소 및 선별장의 부담을 50% 이상 줄입니다.")
-        else:
-            st.warning("💪 올바른 분리배출법을 조금 더 학습하고 다시 도전해보세요!")
+                [조건]
+                1. 주제: {custom_topic}
+                2. 방송 어조: {tone}
+                3. 분량: {target_length}
+                4. 아파트 아침 공영방송에 어울리는 인사말과 마무리를 포함할 것.
+                5. 듣는 입주민이 불쾌하지 않으면서도 핵심 수칙을 명확히 이해할 수 있도록 구성할 것.
+                6. 실제 방송에서 그대로 읽을 수 있는 대본 형식(괄호 안의 효과음이나 지시문 제외)으로만 작성할 것.
+                """
+                
+                # Gemini 2.5 Flash Lite 모델 호출
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash-lite',
+                    contents=prompt
+                )
+                
+                script = response.text.strip()
+                st.session_state.script_text = script
 
-# 하단 공영방송 자막 푸터
-st.markdown("---")
-st.caption("📺 K-재활용 공영방송 | 본 프로그램은 분리배출 의식 개선 및 관리 환경 개선을 위해 제작되었습니다.")
+                # gTTS를 활용하여 음성 파일 생성
+                tts = gTTS(text=script, lang='ko')
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                fp.seek(0)
+                st.session_state.audio_bytes = fp.read()
+
+                st.success("방송 원고 및 음성이
