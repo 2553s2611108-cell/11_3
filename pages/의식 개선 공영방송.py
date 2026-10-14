@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. 커스텀 CSS (공영방송 뉴스 스타일)
+# 2. 커스텀 CSS (공영방송 뉴스 스타일 적용)
 st.markdown("""
     <style>
     .main-header {
@@ -48,7 +48,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 세션 상태 초기화
+# 3. 세션 상태 안전하게 초기화 (NameError 방지)
 if "cheer_messages" not in st.session_state:
     st.session_state["cheer_messages"] = [
         {"name": "101동 주민", "msg": "상자 테이프 항상 떼고 버릴게요. 매번 고생 많으십니다!"},
@@ -185,7 +185,7 @@ elif menu == "3. [주민 참여] 나의 분리배출 양심 지수":
                 st.error("🚨 **[경고] 경비원 아저씨의 업무 부담을 크게 증가시키고 있습니다.** 올바른 배출법을 실천해 주세요!")
 
 # ----------------------------------------------------
-# 4. 공익 캠페인
+# 4. 공익 캠페인 (안전한 접근 처리)
 # ----------------------------------------------------
 elif menu == "4. [공익 캠페인] 경비원 아저씨 응원 게시판":
     st.subheader("💌 경비원 아저씨께 전하는 응원과 실천 다짐")
@@ -205,11 +205,13 @@ elif menu == "4. [공익 캠페인] 경비원 아저씨 응원 게시판":
     st.markdown("---")
     st.markdown("### 📢 주민 응원 전광판")
     
-    for msg_data in st.session_state["cheer_messages"]:
+    # 세션 메시지 안전하게 렌더링
+    cheer_list = st.session_state.get("cheer_messages", [])
+    for msg_data in cheer_list:
         st.markdown(f"""
         <div style='background-color:#ffffff; padding:12px; border-radius:6px; margin-bottom:10px; border:1px solid #e0e0e0;'>
-            <strong style='color:#203a43;'>💙 {msg_data['name']}</strong><br>
-            <span style='color:#333333;'>{msg_data['msg']}</span>
+            <strong style='color:#203a43;'>💙 {msg_data.get('name', '익명')}</strong><br>
+            <span style='color:#333333;'>{msg_data.get('msg', '')}</span>
         </div>
         """, unsafe_allow_html=True)
 
