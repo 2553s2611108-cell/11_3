@@ -1,109 +1,134 @@
 import streamlit as st
-from gtts import gTTS
-import google.generativeai as genai
-import io
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 
-# 1. 페이지 설정
+# 1. 페이지 기본 설정
 st.set_page_config(
-    page_title="아파트 공영방송 - 쓰레기 배출 안내",
+    page_title="아파트 분리배출 공영방송 시스템",
     page_icon="📢",
     layout="wide"
 )
 
-# 2. Gemini API 설정
+# 2. API 키 확인 및 Gemini 클라이언트 초기화
 api_key = st.secrets.get("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
 
-# 3. 타이틀 및 안내
-st.title("📢 아파트 아침 공영방송 안내문 & 음성 생성기")
-st.caption("올바른 쓰레기 배출 문화를 만들기 위한 아파트 아침 방송용 멘트 작성 및 음성 생성 앱입니다.")
+if not api_key:
+    st.warning("⚠️ `GEMINI_API_KEY`가 설정되지 않았습니다. Secrets 설정을 완료해주세요.")
 
-# 4. 사이드바 - 설정
-st.sidebar.header("🎙️ 방송 설정")
-category = st.sidebar.selectbox(
-    "방송 주제 선택",
-    ["음식물 쓰레기 물기 제거", "재활용품 올바른 분리배출", "대형 폐기물 스티커 부착", "밤샘 무단투기 금지 및 에티켓", "직접 입력"]
+# 3. 사이드바 - 기본 설정 및 가이드
+st.sidebar.title("📢 방송 시스템 메뉴")
+menu = st.sidebar.radio(
+    "메뉴 선택",
+    ["🎙️ 오늘의 아침 방송 생성", "🔍 자주 틀리는 분리배출 Q&A", "📅 요일별 방송 가이드"]
 )
 
-tone = st.sidebar.radio(
-    "방송 어조(Tone)",
-    ["정중하고 따뜻한 어조", "경각심을 주는 단호한 어조", "위트 있고 친근한 어조"]
-)
+st.sidebar.markdown("---")
+st.sidebar.caption("💡 **사용 팁:** 매일 아침 8시~9시 사이 아파트 단내 방송으로 송출하시면 효과적입니다.")
 
-# 기본 템플릿 문구
-default_texts = {
-    "음식물 쓰레기 물기 제거": "입주민 여러분, 안녕하십니까. 관리사무소에서 안내 말씀드립니다. 음식물 쓰레기를 버리실 때는 물기를 꼭 짜서 배출해 주시기 바랍니다. 물기만 잘 제거해도 악취와 침출수를 크게 줄일 수 있습니다. 깨끗한 아파트 단지를 위해 입주민 여러분의 적극적인 협조 부탁드립니다. 감사합니다.",
-    "재활용품 올바른 분리배출": "입주민 여러분, 안녕하십니까. 비닐류와 플라스틱은 이물질을 깨끗이 헹군 후 배출해 주셔야 재활용이 가능합니다. 페트병은 라벨을 제거하고 착착 접어서 버려주시기 바랍니다. 작은 실천이 우리 아파트의 환경을 바꿉니다. 감사합니다.",
-    "대형 폐기물 스티커 부착": "입주민 여러분, 안녕하십니까. 가구나 가전 등 대형 폐기물을 배출하실 때에는 반드시 관할 구청 스티커를 부착하거나 앱을 통해 신고 후 배출하셔야 합니다. 미부착 폐기물은 수거되지 않으니 협조 바랍니다.",
-    "밤샘 무단투기 금지 및 에티켓": "입주민 여러분, 안녕하십니까. 늦은 밤시간 복도나 지정되지 않은 장소에 쓰레기를 투기하는 행위는 이웃에게 큰 불편을 줍니다. 지정된 시간과 장소에 배출해 주시길 당부드립니다.",
-    "직접 입력": ""
-}
+# -------------------------------------------------------------------
+# 메뉴 1: 오늘의 아침 방송 생성
+# -------------------------------------------------------------------
+if menu == "🎙️ 오늘의 아침 방송 생성":
+    st.title("🎙️ 아파트 분리배출 아침 공영방송")
+    st.subheader("매일 아침 주민들의 분리배출 의식을 개선하는 맞춤형 안내 방송")
 
-# 5. 메인 화면 구성
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.subheader("📝 방송 원고 작성")
+    col1, col2 = st.columns(2)
     
-    # Gemini AI 원고 작성 버튼 (Secrets 설정된 경우만)
-    if api_key:
-        if st.button("✨ AI로 방송 원고 새로 쓰기"):
-            try:
-                model = genai.GenerativeModel('gemini-2.5-flash-lite')
-                prompt = f"아파트 아침 공영방송용 멘트를 작성해줘. 주제: '{category}', 어조: '{tone}'. 방송 길이는 30초~40초 분량(200자 내외)으로, 주민들이 듣기 편하고 명확하게 작성해줘."
-                
-                with st.spinner("AI가 방송 원고를 작성하고 있습니다..."):
-                    response = model.generate_content(prompt)
-                    script_text = response.text
-                    st.session_state["script_text"] = script_text
-            except Exception as e:
-                st.error(f"AI 원고 생성 중 오류가 발생했습니다: {e}")
-    else:
-        st.info("💡 Tip: Gemini API Key를 설정하면 AI가 자동으로 어조에 맞는 방송 원고를 작성해 드립니다.")
+    with col1:
+        season = st.selectbox("현재 계절/특수 상황", ["평일 일반", "주말 아침 (배출량 증가)", "여름철 (음식물/악취)", "겨울철/김장철", "명절 연휴 후"])
+        target_item = st.selectbox("오늘의 중점 교정 품목", [
+            "자동 추천 (AI 선택)",
+            "배달용기 / 비닐류 (이물질 제거)",
+            "택배 상자 (테이프·운송장 제거)",
+            "투명 페트병 (라벨 제거 및 압축)",
+            "스티로폼 (이물질/스티커 제거)",
+            "음식물 쓰레기 (일반쓰레기 혼입 금지)"
+        ])
 
-    # 텍스트 에어리어 (세션 상태 활용)
-    initial_value = st.session_state.get("script_text", default_texts.get(category, ""))
-    user_text = st.text_area("방송할 텍스트를 확인 및 수정하세요:", value=initial_value, height=220)
+    with col2:
+        tone = st.radio("방송 톤앤매너", ["친근하고 따뜻한 어조", "정중하고 정직한 어조", "명확하고 강조하는 어조"])
+        duration = st.select_slider("방송 예상 시간", options=["30초 (요약)", "1분 (권장)", "1분 30초 (상세)"])
 
-with col2:
-    st.subheader("🔊 방송 음성(MP3) 생성")
-    
-    if user_text.strip():
-        if st.button("▶️ 방송 음성 생성하기", type="primary"):
-            try:
-                with st.spinner("한국어 음성을 생성하는 중입니다..."):
-                    # gTTS를 이용한 한국어 음성 생성
-                    tts = gTTS(text=user_text, lang='ko')
-                    fp = io.BytesIO()
-                    tts.write_to_fp(fp)
-                    fp.seek(0)
+    if st.button("📢 방송 원고 및 음성 생성하기", type="primary"):
+        if not api_key:
+            st.error("Secrets에 `GEMINI_API_KEY`를 먼저 등록해주세요.")
+        else:
+            with st.spinner("AI 방송 아나운서가 원고를 작성하고 있습니다..."):
+                try:
+                    client = genai.Client(api_key=api_key)
                     
-                    st.success("음성 생성이 완료되었습니다!")
-                    
-                    # 미리듣기 오디오 플레이어
-                    st.audio(fp, format='audio/mp3')
-                    
-                    # 다운로드 버튼
-                    st.download_button(
-                        label="📥 MP3 파일 다운로드 (방송 장비용)",
-                        data=fp,
-                        file_name="morning_broadcast.mp3",
-                        mime="audio/mp3"
+                    prompt = f"""
+                    당신은 아파트 단지 공영방송 전문 아나운서입니다.
+                    주민들의 올바른 쓰레기 분리배출 의식을 높이기 위한 아침 안내 방송 원고를 작성해주세요.
+
+                    - 상황: {season}
+                    - 중점 강조 품목: {target_item}
+                    - 어조: {tone}
+                    - 분량: {duration} 내외
+                    - 구성 요건:
+                      1. 따뜻한 아침 인사말 (예: "주민 여러분, 안녕하십니까. 즐거운 아침입니다.")
+                      2. 오늘 강조할 분리배출 실천 포인트 (이유와 올바른 방법)
+                      3. 올바른 분리배출이 아파트 관리비 절감 및 환경 보호에 주는 이점 언급
+                      4. 정중한 마무리 인사
+
+                    방송 원고만 깔끔하게 출력해주세요.
+                    """
+
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash-lite",
+                        contents=prompt,
                     )
-            except Exception as e:
-                st.error(f"음성 파일 생성 중 오류가 발생했습니다: {e}")
-    else:
-        st.warning("왼쪽 상자에 방송할 내용을 입력하거나 선택해 주세요.")
 
-# 6. 하단 안내 탭
-st.markdown("---")
-st.subheader("📌 방송 시 주의사항")
-st.markdown("""
-- **방송 스피커 점검**: 음성 생성 후 미리듣기로 음량이 적절한지 먼저 확인하세요.
-- **적정 송출 시간**: 입주민의 수면을 방해하지 않도록 **오전 8시 30분 ~ 9시 사이** 송출을 권장합니다.
-- **다운로드한 MP3 활용**: MP3 파일을 USB에 담거나, 관리사무소 방송용 PC에 저장하여 매일 아침 간편하게 재생할 수 있습니다.
-""")
+                    script_text = response.text
+
+                    st.success("🎉 방송 원고가 성공적으로 생성되었습니다!")
+                    
+                    # 원고 출력
+                    st.markdown("### 📝 오늘의 방송 원고")
+                    st.info(script_text)
+
+                    # 브라우저 음성 읽기(TTS) 안내 및 텍스트 제공
+                    st.markdown("---")
+                    st.markdown("### 🔊 방송 송출 (음성 듣기)")
+                    st.caption("아래 플레이어 버튼을 눌러 방송 음성을 직접 듣거나 방송 장비에 연결하여 송출하세요.")
+                    
+                    # HTML5 Web Speech API를 활용한 가벼운 오디오 재생 구현
+                    tts_code = f"""
+                    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; text-align: center;">
+                        <button onclick="speakText()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer;">
+                            ▶️ 방송 음성 재생
+                        </button>
+                        <button onclick="stopText()" style="background-color: #555555; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin-left: 10px;">
+                            ⏹️ 정지
+                        </button>
+                    </div>
+
+                    <script>
+                    var synth = window.speechSynthesis;
+                    function speakText() {{
+                        if (synth.speaking) {{ synth.cancel(); }}
+                        var text = `{script_text.replace('\n', ' ')}`;
+                        var utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = 'ko-KR';
+                        utterance.rate = 0.9; // 아침 방송용 약간 천천히
+                        synth.speak(utterance);
+                    }}
+                    function stopText() {{
+                        synth.cancel();
+                    }}
+                    </script>
+                    """
+                    st.components.v1.html(tts_code, height=100)
+
+                except APIError as e:
+                    st.error(f"Gemini API 호출 중 오류가 발생했습니다: {e}")
+                except Exception as e:
+                    st.error(f"알 수 없는 오류가 발생했습니다: {e}")
+
+# -------------------------------------------------------------------
+# 메뉴 2: 자주 틀리는 분리배출 Q&A
+# 
 streamlit
-gTTS
-google-generativeai
+google-genai
+GEMINI_API_KEY = "발급받은_실제_API_키_입력"
