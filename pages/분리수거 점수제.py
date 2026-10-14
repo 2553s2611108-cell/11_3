@@ -108,7 +108,7 @@ def create_donut_chart(correct, incorrect):
     fig = go.Figure(data=[go.Pie(
         labels=['잘 분리배출', '잘못 배출'],
         values=[correct, incorrect],
-        hole=.65,
+        hole=0.65,
         marker_colors=['#00a86b', '#ff6b6b'],
         textinfo='none',
         hoverinfo='label+percent'
@@ -137,20 +137,16 @@ def analyze_waste_image(image):
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.5-flash-lite")
         
-        prompt = """
-        당신은 분리수거 전문 AI입니다. 쓰레기통/쓰레기 사진을 분석하여 오직 아래 JSON 형식으로만 답변하세요.
-        마크다운 태그 없이 순수 JSON 텍스트만 출력해야 합니다.
-
-        {
-            "correct_ratio": 75,
-            "incorrect_ratio": 25,
-            "added_score": 100,
-            "mistakes": [
-                ["잘못 배출된 항목명 1", "사유 설명 1"],
-                ["잘못 배출된 항목명 2", "사유 설명 2"]
-            ]
-        }
-        """
+        prompt = """당신은 분리수거 전문 AI입니다. 쓰레기통/쓰레기 사진을 분석하여 오직 JSON 형식으로만 답변하세요.
+{
+    "correct_ratio": 75,
+    "incorrect_ratio": 25,
+    "added_score": 100,
+    "mistakes": [
+        ["잘못 배출된 항목명 1", "사유 설명 1"],
+        ["잘못 배출된 항목명 2", "사유 설명 2"]
+    ]
+}"""
         response = model.generate_content([prompt, image])
         text = response.text.strip()
         if text.startswith("```"):
@@ -178,57 +174,42 @@ if selected_tab == "🏠 홈":
     st.subheader("🏆 아파트 동별 누적 점수 순위")
     st.caption("지금까지의 누적 점수로 집계된 동별 순위입니다.")
 
-    # 문법 오류가 수정된 정렬 코드
     sorted_dongs = sorted(
-        st.session_state.dong_data.items(),
-        key=lambda item: item[1]["score"],
+        list(st.session_state.dong_data.items()),
+        key=lambda x: x[1]["score"],
         reverse=True
     )
 
-    # 1~3위 배치
     col_rank2, col_rank1, col_rank3 = st.columns([1, 1.1, 1])
 
     if len(sorted_dongs) >= 3:
         # 2위
         with col_rank2:
             d_name, d_info = sorted_dongs[1]
-            st.markdown(f"""
-                <div class="rank-card rank-2">
-                    <span style="font-size:24px;">🥈</span>
-                    <h4 style="margin:5px 0;">{d_name}</h4>
-                    <h3 style="margin:5px 0; color:#333;">{d_info['score']:,}점</h3>
-                    <span class="badge-plus">▲ +{d_info['change']}</span>
-                </div>
-            """, unsafe_allow_html=True)
+            score_str = f"{d_info['score']:,}"
+            change_str = str(d_info['change'])
+            html_content = f'<div class="rank-card rank-2"><span style="font-size:24px;">🥈</span><h4 style="margin:5px 0;">{d_name}</h4><h3 style="margin:5px 0; color:#333;">{score_str}점</h3><span class="badge-plus">▲ +{change_str}</span></div>'
+            st.markdown(html_content, unsafe_allow_html=True)
 
         # 1위
         with col_rank1:
             d_name, d_info = sorted_dongs[0]
-            st.markdown(f"""
-                <div class="rank-card rank-1">
-                    <span style="font-size:28px;">👑 🥇</span>
-                    <h3 style="margin:5px 0; color:#1b5e20;">{d_name}</h3>
-                    <h2 style="margin:5px 0; color:#d81b60;">{d_info['score']:,}점</h2>
-                    <span class="badge-plus">▲ +{d_info['change']}</span>
-                </div>
-            """, unsafe_allow_html=True)
+            score_str = f"{d_info['score']:,}"
+            change_str = str(d_info['change'])
+            html_content = f'<div class="rank-card rank-1"><span style="font-size:28px;">👑 🥇</span><h3 style="margin:5px 0; color:#1b5e20;">{d_name}</h3><h2 style="margin:5px 0; color:#d81b60;">{score_str}점</h2><span class="badge-plus">▲ +{change_str}</span></div>'
+            st.markdown(html_content, unsafe_allow_html=True)
 
         # 3위
         with col_rank3:
             d_name, d_info = sorted_dongs[2]
-            st.markdown(f"""
-                <div class="rank-card rank-3">
-                    <span style="font-size:24px;">🥉</span>
-                    <h4 style="margin:5px 0;">{d_name}</h4>
-                    <h3 style="margin:5px 0; color:#333;">{d_info['score']:,}점</h3>
-                    <span class="badge-plus">▲ +{d_info['change']}</span>
-                </div>
-            """, unsafe_allow_html=True)
+            score_str = f"{d_info['score']:,}"
+            change_str = str(d_info['change'])
+            html_content = f'<div class="rank-card rank-3"><span style="font-size:24px;">🥉</span><h4 style="margin:5px 0;">{d_name}</h4><h3 style="margin:5px 0; color:#333;">{score_str}점</h3><span class="badge-plus">▲ +{change_str}</span></div>'
+            st.markdown(html_content, unsafe_allow_html=True)
 
     st.write("")
     st.divider()
 
-    # 분석 카드
     st.subheader("🔍 동별 분리배출 분석")
     st.caption("AI가 분석한 각 동의 분리배출 현황과 잘못 배출한 쓰레기 유형입니다.")
 
@@ -238,31 +219,9 @@ if selected_tab == "🏠 홈":
             
             with c1:
                 st.markdown(f"### {idx}. {dong_name}")
-                st.markdown(f"## **{data['score']:,}점**")
-                st.markdown(f"<span class='badge-plus'>▲ +{data['change']}</span>", unsafe_allow_html=True)
+                score_str = f"{data['score']:,}"
+                st.markdown(f"## **{score_str}점**")
+                change_str = str(data['change'])
+                st.markdown(f"<span class='badge-plus'>▲ +{change_str}</span>", unsafe_allow_html=True)
 
-            with c2:
-                fig = create_donut_chart(data['correct_ratio'], data['incorrect_ratio'])
-                st.plotly_chart(fig, use_container_width=False, config={'displayModeBar': False})
-
-            with c3:
-                st.markdown("##### 🚨 주요 잘못 배출한 쓰레기")
-                for mistake, reason in data['mistakes']:
-                    st.markdown(f"""
-                        <div class="mistake-box">
-                            <strong>• {mistake}</strong><br>
-                            <span style="font-size: 0.85rem; color: #666;">({reason})</span>
-                        </div>
-                    """, unsafe_allow_html=True)
-            st.divider()
-
-# -----------------------------------------------------------------------------
-# 7. AI 쓰레기 스캔 탭
-# -----------------------------------------------------------------------------
-elif selected_tab == "📸 AI 쓰레기 스캔":
-    st.subheader("📸 AI 쓰레기통 스캔 & 분석")
-    
-    target_dong = st.selectbox("점수를 적립할 동을 선택하세요", list(st.session_state.dong_data.keys()))
-    uploaded_file = st.file_uploader("쓰레기통 사진을 업로드하세요", type=["jpg", "png", "jpeg"])
-    
-    if uploaded_
+            with
