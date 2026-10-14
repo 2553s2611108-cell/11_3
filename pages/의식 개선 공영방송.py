@@ -90,4 +90,3 @@ if st.session_state.current_page == "의식개선 공영방송":
         "기본 안내": "주민 여러분, 깨끗한 아
 streamlit
 google-genai
-GEMINI_API_KEY = "발급받은_API_KEY_입력"
