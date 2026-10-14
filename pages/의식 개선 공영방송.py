@@ -107,4 +107,3 @@ st.markdown("""
 streamlit
 gTTS
 google-generativeai
-GEMINI_API_KEY = "발급받은_실제_API_KEY_입력"
