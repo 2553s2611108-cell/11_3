@@ -1,161 +1,283 @@
+import os
 import streamlit as st
-import time
+import google.generativeai as genai
 
-# 페이지 설정
+# Page Configuration
 st.set_page_config(
-    page_title="K-재활용 공영방송 | 의식 개선 뉴스 센터",
-    page_icon="♻️",
+    page_title="우리아파트 분리배출 공영방송",
+    page_icon="📢",
     layout="wide"
 )
 
-# 커스텀 CSS (공영방송 자막 & 뉴스 스타일)
+# Custom CSS for Mobile UI Design Theme (Orange & Cream, Card Layout)
 st.markdown("""
     <style>
-    .news-header {
-        background-color: #0b3c5d;
-        color: white;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-        font-weight: bold;
-        font-size: 26px;
-        margin-bottom: 20px;
+    /* 전체 배경색 및 폰트 설정 */
+    .stApp {
+        background-color: #F8F6F0;
+        font-family: 'Pretendard', sans-serif;
     }
-    .ticker {
-        background-color: #d9534f;
-        color: white;
-        padding: 8px 15px;
-        font-weight: bold;
-        border-radius: 4px;
-        margin-bottom: 25px;
+    
+    /* 헤더 스타일링 */
+    h1 {
+        color: #FF5E36 !important;
+        font-weight: 800 !important;
     }
-    .stat-card {
-        background-color: #f8f9fa;
+    
+    /* 메인 카드 박스 디자인 */
+    div[data-testid="stMetricValue"] {
+        color: #FF5E36 !important;
+        font-weight: bold;
+    }
+    
+    div[data-testid="metric-container"] {
+        background-color: #FFFFFF;
+        border-radius: 16px;
         padding: 15px;
-        border-left: 5px solid #0b3c5d;
-        border-radius: 4px;
-        margin-bottom: 10px;
+        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
+        border: 1px solid #FFEBE3;
+    }
+
+    /* 버튼 스타일링 (주황색 테마) */
+    .stButton>button {
+        background-color: #FF5E36 !important;
+        color: white !important;
+        border-radius: 25px !important;
+        border: none !important;
+        padding: 10px 24px !important;
+        font-weight: bold !important;
+        box-shadow: 0 4px 10px rgba(255, 94, 54, 0.3);
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #E04B26 !important;
+        transform: translateY(-2px);
+    }
+
+    /* Expander / 카드 모듈 디자인 */
+    .streamlit-expanderHeader {
+        background-color: #FFFFFF !important;
+        border-radius: 12px !important;
+        border: 1px solid #FFE0D3 !important;
+        color: #333333 !important;
+        font-weight: 600;
+    }
+
+    /* 사이드바 스타일링 */
+    section[data-testid="stSidebar"] {
+        background-color: #FFFFFF;
+        border-right: 1px solid #EFEFEF;
+    }
+    
+    /* Info / Success / Warning 박스 커스텀 */
+    .stAlert {
+        border-radius: 16px !important;
+        border: none !important;
+    }
+    
+    /* 검색창 & 텍스트 입력창 라운딩 */
+    .stTextInput input, .stTextArea textarea {
+        border-radius: 12px !important;
+        border: 1px solid #E0E0E0 !important;
+        background-color: #FFFFFF !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 메인 타이틀
-st.markdown("<div class='news-header'>📺 K-재활용 공영방송 : 올바른 분리배출 특별기획</div>", unsafe_allow_html=True)
+# App Title & Header
+st.title("📢 우리아파트 Clean-Up 공영방송")
+st.caption("주민 모두가 함께 만드는 올바른 분리배출 문화 챌린지")
 
-# 속보 전광판
-st.markdown("<div class='ticker'>🚨 [속보] 무분별한 혼합 배출로 재활용품 선별장 마비 심각... 관리 인력 고충 증대</div>", unsafe_allow_html=True)
-
-# 사이드바 메뉴
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3299/3299935.png", width=100)
-st.sidebar.title("📺 방송 편성표")
+# Sidebar Menu
+st.sidebar.header("📺 방송국 채널")
 menu = st.sidebar.radio(
-    "시청할 프로그램을 선택하세요:",
-    ["1. [뉴스데스크] 분리배출 실태", "2. [특집기획] 잘못 배출하면 생기는 일", "3. [시민참여] O/X 환경 퀴즈"]
+    "이동할 메뉴를 선택하세요:",
+    [
+        "📺 오늘의 방송 (메인)",
+        "🔍 분리배출 가이드",
+        "🧩 분리배출 O/X 퀴즈",
+        "📸 주민 실천 인증 게시판",
+        "🤖 AI 분리배출 상담소"
+    ]
 )
 
-# ----------------------------------------------------
-# 1. 뉴스데스크
-# ----------------------------------------------------
-if menu == "1. [뉴스데스크] 분리배출 실태":
-    st.subheader("📰 [보도] 잘못된 분리배출이 만드는 '관리의 경고'")
-    st.write("우리가 무심코 버린 쓰레기가 재활용품 선별장과 아파트 관리원분들에게 미치는 영향입니다.")
+# -------------------------------------------------------------------
+# 1. 메인 방송 (대시보드)
+# -------------------------------------------------------------------
+if menu == "📺 오늘의 방송 (메인)":
+    st.subheader("📡 오늘의 아파트 환경 방송")
+    
+    st.info("""
+    **[안내 방송]** 
+    주민 여러분, 안녕하십니까! 아파트 환경 관리 방송국입니다. 
+    오늘도 올바른 분리배출을 통해 깨끗한 우리 아파트와 지구를 만드는데 동참해주세요!
+    - **오늘의 강조사항**: 라벨 제거하지 않은 투명 페트병은 재활용이 불가능합니다. 꼭 라벨을 떼서 배출해주세요!
+    """)
     
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="📊 수거 쓰레기 중 잔재물 비율", value="38.5%", delta="오염으로 인한 폐기")
-    with col2:
-        st.metric(label="💸 연간 불필요한 처리 비용", value="약 1,200억 원", delta="+12% 증가", delta_color="inverse")
-    with col3:
-        st.metric(label="⏱️ 관리원 1인당 추가 작업시간", value="일 평균 2.5시간", delta="선별 작업 부담")
+    col1.metric("오늘의 올바른 배출률", "82%", "+5%")
+    col2.metric("이번 달 챌린지 참여 수", "142건", "+12건")
+    col3.metric("절감된 폐기물 비용", "약 450,000원", "목표 달성 중")
 
     st.markdown("---")
-    st.markdown("### 📽️ [현장 취재] 주요 관리 어려움 TOP 3")
+    st.subheader("💡 3대 핵심 배출 수칙 (비·행·분·섞)")
     
-    tab1, tab2, tab3 = st.tabs(["🔴 음식물 묻은 용기", "🔴 라벨 미제거 페트병", "🔴 혼합 배출(이물질)"])
-    
-    with tab1:
-        st.warning("⚠️ **관리 현장의 목소리:** '양념이 묻은 컵라면 용기나 플라스틱은 재활용이 불가능해 전량 세척하거나 일반쓰레기로 재분류해야 합니다.'")
-        st.info("💡 **올바른 배출 방법:** 물로 깨끗이 헹군 후 배출하고, 이물질이 지워지지 않으면 일반쓰레기(종량제 봉투)로 버려주세요.")
-        
-    with tab2:
-        st.warning("⚠️ **관리 현장의 목소리:** '투명 페트병의 비닐 라벨을 떼지 않으면 재사용 등급이 떨어지고, 세척 및 절단 기계 고장의 원인이 됩니다.'")
-        st.info("💡 **올바른 배출 방법:** 라벨을 떼어 비닐류로 버리고, 페트병은 압착하여 뚜껑을 닫아 배출합니다.")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.success("1. 비운다")
+        st.caption("용기 안의 내용물을 깨끗이 비워주세요.")
+    with c2:
+        st.info("2. 헹군다")
+        st.caption("이물질이나 음식물은 물로 헹궈주세요.")
+    with c3:
+        st.warning("3. 분리한다")
+        st.caption("라벨, 뚜껑 등 다른 재질은 분리해주세요.")
+    with c4:
+        st.error("4. 섞지 않는다")
+        st.caption("종류별, 재질별로 구분하여 배출해주세요.")
 
-    with tab3:
-        st.warning("⚠️ **관리 현장의 목소리:** '종이 상자에 테이프나 운송장이 붙어있거나, 상자 안에 스티로폼을 넣은 채 버리면 일일이 손으로 다 뜯어내야 합니다.'")
-        st.info("💡 **올바른 배출 방법:** 송장과 테이프를 완전히 제거하고 상자는 펼쳐서 배출해주세요.")
-
-# ----------------------------------------------------
-# 2. 특집기획
-# ----------------------------------------------------
-elif menu == "2. [특집기획] 잘못 배출하면 생기는 일":
-    st.subheader("🔍 [기획탐구] 내가 버린 쓰레기, 관리소에서는?")
-    st.write("품목을 선택하면 잘못 배출했을 때의 **관리상 문제점**과 **해결 가이드**를 보여드립니다.")
+# -------------------------------------------------------------------
+# 2. 분리배출 가이드
+# -------------------------------------------------------------------
+elif menu == "🔍 분리배출 가이드":
+    st.subheader("🔍 품목별 올바른 배출 방법")
     
-    item = st.selectbox(
-        "버리려는 물품을 선택해보세요:",
-        ["선택하세요", "택배 상자 (테이프 부착)", "음식물 묻은 배달 용기", "투명 페트병 (라벨 부착)", "깨진 유리병", "건전지 / 보조배터리"]
-    )
+    guide_data = {
+        "투명 페트병": "내용물 비우기 ➔ 라벨 제거 ➔ 압착 후 뚜껑 닫아서 **전용 수거함**에 배출",
+        "플라스틱류": "내용물 비우고 헹군 후 배출 (부속품 등 다른 재질은 제거)",
+        "종이팩/우유팩": "내용물 헹구기 ➔ 펼쳐서 말리기 ➔ 일반 종이류와 **구분하여 전용함**에 배출",
+        "스티로폼": "흰색 스티로폼 상자만 가능. 운송장 스티커, 테이프 완전히 제거 후 배출 (컵라면 용기는 씻어도 종량제 봉투)",
+        "비닐류": "내용물 비우고 깨끗이 씻어 배출 (이물질 안 닦이면 종량제 봉투)",
+        "유리병": "담배꽁초 등 이물질 넣지 않기 ➔ 깨진 유리는 신문지에 싸서 **종량제 봉투/특량제 봉투**"
+    }
     
-    if item == "택배 상자 (테이프 부착)":
-        st.error("❌ **발생하는 문제:** 박스 재활용 시 테이프 이물질로 인해 재질 저하, 수거 거부 발생")
-        st.success("✅ **관리 개선 솔루션:** 테이프·운송장 제거 ➔ 상자 접어서 종이류 배출")
-    elif item == "음식물 묻은 배달 용기":
-        st.error("❌ **발생하는 문제:** 다른 깨끗한 플라스틱까지 오염시켜 전체 재활용 불가 및 악취 발생")
-        st.success("✅ **관리 개선 솔루션:** 내용물 씻기 ➔ 안 씻기면 종량제 봉투 배출")
-    elif item == "투명 페트병 (라벨 부착)":
-        st.error("❌ **발생하는 문제:** 수거 후 별도 인력이 일일이 라벨을 제거해야 함 (비용 및 시간 소요)")
-        st.success("✅ **관리 개선 솔루션:** 라벨 제거 ➔ 압착 후 전용 수거함 배출")
-    elif item == "깨진 유리병":
-        st.error("❌ **발생하는 문제:** 수거 및 관리 작업자의 인명 사고(베임, 다침) 위험 매우 높음")
-        st.success("✅ **관리 개선 솔루션:** 신문지로 싸서 불연성 마대(특수 종량제 봉투)에 배출")
-    elif item == "건전지 / 보조배터리":
-        st.error("❌ **발생하는 문제:** 일반 쓰레기나 플라스틱에 섞여 배출될 경우 수거 차량 및 처리장 화재 원인")
-        st.success("✅ **관리 개선 솔루션:** 전용 폐건전지 수거함에 별도 배출")
+    search_term = st.text_input("찾고 싶은 품목을 검색하세요 (예: 페트병, 스티로폼, 종이팩):")
+    
+    st.markdown("---")
+    for item, guide in guide_data.items():
+        if search_term == "" or search_term.lower() in item.lower():
+            with st.expander(f"📦 {item}"):
+                st.write(guide)
 
-# ----------------------------------------------------
-# 3. 시민참여 퀴즈
-# ----------------------------------------------------
-elif menu == "3. [시민참여] O/X 환경 퀴즈":
-    st.subheader("🧩 [시민참여] 올바른 분리배출 의식 테스트")
-    st.write("퀴즈를 풀고 환경을 지키는 '공영방송 인증 모범 시민'이 되어보세요!")
+# -------------------------------------------------------------------
+# 3. 분리배출 O/X 퀴즈
+# -------------------------------------------------------------------
+elif menu == "🧩 분리배출 O/X 퀴즈":
+    st.subheader("🧩 착각하기 쉬운 분리배출 O/X 퀴즈")
+    st.write("퀴즈를 통해 잘못 알고 있던 분리배출 상식을 바로잡아 보세요!")
+    
+    quizzes = [
+        {
+            "question": "1. 깨끗하게 씻은 컵라면 스티로폼 용기는 스티로폼으로 분리배출한다.",
+            "answer": "X",
+            "explanation": "해설: 라면 국물이 밴 스티로폼 용기는 재활용이 불가능하므로 일반 쓰레기(종량제 봉투)로 버려야 합니다."
+        },
+        {
+            "question": "2. 투명 페트병은 라벨을 제거하고 뚜껑을 닫아서 배출해도 된다.",
+            "answer": "O",
+            "explanation": "해설: 뚜껑은 페트병과 함께 압착 후 닫아서 배출해도 재활용 공정에서 선별 가능합니다. (단, 라벨은 반드시 제거해야 합니다)"
+        },
+        {
+            "question": "3. 씻지 않은 찌꺼기가 남은 비닐은 비닐류 수거함에 버려도 된다.",
+            "answer": "X",
+            "explanation": "해설: 이물질이나 음식물이 묻은 비닐은 재활용을 오염시키므로 일반 쓰레기로 버려야 합니다."
+        }
+    ]
     
     score = 0
-    
-    q1 = st.radio("Q1. 씻기지 않는 컵라면 스티로폼 용기는 재활용에 버려야 한다?", ("선택하세요", "O", "X"))
-    if q1 == "X":
-        score += 1
-        st.caption("✨ 정답! 이물질이 제거되지 않는 용기는 종량제 봉투로 버려야 관리자분들의 2차 분류 수고를 줄입니다.")
-    elif q1 == "O":
-        st.caption("❌ 오답! 오염된 용기는 재활용이 안 되며, 다른 재활용품까지 오염시킵니다.")
+    with st.form("quiz_form"):
+        user_answers = []
+        for idx, q in enumerate(quizzes):
+            st.markdown(f"**{q['question']}**")
+            ans = st.radio(f"정답 선택 ({idx+1}번)", ["O", "X"], key=f"q_{idx}", horizontal=True)
+            user_answers.append(ans)
+            st.markdown("---")
+            
+        submitted = st.form_submit_button("정답 확인하기")
         
-    st.markdown("---")
-    q2 = st.radio("Q2. 깨진 유리병은 일반 유리병 수거함에 버려도 된다?", ("선택하세요", "O", "X"))
-    if q2 == "X":
-        score += 1
-        st.caption("✨ 정답! 깨진 유리는 관리자가 다칠 수 있으므로 신문지에 싸서 불연성 마대에 버려야 합니다.")
-    elif q2 == "O":
-        st.caption("❌ 오답! 관리원의 부상 위험이 높습니다.")
+        if submitted:
+            st.subheader("📊 퀴즈 결과")
+            for idx, q in enumerate(quizzes):
+                if user_answers[idx] == q["answer"]:
+                    st.success(f"Q{idx+1}: 정답입니다! 🎉")
+                    score += 1
+                else:
+                    st.error(f"Q{idx+1}: 틀렸습니다. 😅 (선택: {user_answers[idx]} / 정답: {q['answer']})")
+                st.caption(q["explanation"])
+            
+            st.info(f"**총 점수: {score} / {len(quizzes)}점**")
 
+# -------------------------------------------------------------------
+# 4. 주민 실천 인증 게시판
+# -------------------------------------------------------------------
+elif menu == "📸 주민 실천 인증 게시판":
+    st.subheader("📸 분리배출 실천 인증 & 노하우 공유")
+    st.write("올바른 분리배출 모습을 인증하고 깨끗한 아파트를 함께 만들어가요!")
+    
+    if "posts" not in st.session_state:
+        st.session_state.posts = [
+            {"name": "101동 주민", "content": "오늘 투명 페트병 라벨 싹 떼고 압착해서 버렸습니다! 뿌듯하네요.", "likes": 5},
+            {"name": "203동 주민", "content": "택배 상자 테이프랑 운송장 스티커 꼭 제거하고 버립시다!", "likes": 8}
+        ]
+        
+    with st.form("post_form"):
+        author = st.text_input("작성자 (예: 105동 주민)", max_chars=20)
+        content = st.text_area("인증 내용 및 나만의 분리배출 팁", max_chars=200)
+        submit_post = st.form_submit_button("인증글 등록하기")
+        
+        if submit_post:
+            if author and content:
+                st.session_state.posts.insert(0, {"name": author, "content": content, "likes": 0})
+                st.success("인증글이 성공적으로 등록되었습니다!")
+                st.rerun()
+            else:
+                st.warning("작성자와 내용을 모두 입력해주세요.")
+                
     st.markdown("---")
-    q3 = st.radio("Q3. 페트병의 비닐 라벨은 반드시 떼어서 비닐류로 따로 버려야 한다?", ("선택하세요", "O", "X"))
-    if q3 == "O":
-        score += 1
-        st.caption("✨ 정답! 라벨을 제거해야 고품질 리사이클링이 가능합니다.")
-    elif q3 == "X":
-        st.caption("❌ 오답! 라벨 미제거 시 수거 및 재활용 과정에서 심각한 차질을 빚습니다.")
+    st.subheader("💬 주민 참여 피드")
+    
+    for idx, post in enumerate(st.session_state.posts):
+        with st.container():
+            st.markdown(f"**👤 {post['name']}**")
+            st.write(post['content'])
+            col_like, _ = st.columns([1, 5])
+            if col_like.button(f"❤️ 응원하기 ({post['likes']})", key=f"like_{idx}"):
+                post['likes'] += 1
+                st.rerun()
+            st.markdown("---")
 
-    st.markdown("---")
-    if st.button("결과 확인 및 인증서 발급"):
-        with st.spinner("결과 분석 중..."):
-            time.sleep(1)
-        st.balloons()
-        st.success(f"🎊 3문제 중 {score}문제를 맞추셨습니다!")
-        if score == 3:
-            st.info("🏆 **[K-재활용 공영방송 인증] 최우수 환경 모범 시민입니다!**\n\n여러분의 올바른 배출이 관리소 및 선별장의 부담을 50% 이상 줄입니다.")
+# -------------------------------------------------------------------
+# 5. AI 분리배출 상담소
+# -------------------------------------------------------------------
+elif menu == "🤖 AI 분리배출 상담소":
+    st.subheader("🤖 Gemini AI 분리배출 도우미")
+    st.write("버리기 애매하거나 헷갈리는 물품의 이름을 입력하시면 올바른 배출 방법을 알려드립니다.")
+    
+    api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    
+    user_query = st.text_input("질문할 품목을 입력하세요 (예: 코팅된 전단지, 깨진 유리컵, 스프링 노트):")
+    
+    if st.button("AI에게 물어보기"):
+        if not api_key:
+            st.error("Secrets 설정에 'GEMINI_API_KEY'가 설정되어 있지 않습니다.")
+        elif not user_query:
+            st.warning("질문할 물품을 입력해주세요.")
         else:
-            st.warning("💪 올바른 분리배출법을 조금 더 학습하고 다시 도전해보세요!")
-
-# 하단 공영방송 자막 푸터
-st.markdown("---")
-st.caption("📺 K-재활용 공영방송 | 본 프로그램은 분리배출 의식 개선 및 관리 환경 개선을 위해 제작되었습니다.")
+            try:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                
+                prompt = f"""
+                당신은 아파트 분리배출 전문 안내 AI입니다.
+                다음 물품의 올바른 분리배출 방법(종량제 봉투 / 재활용 / 특수배출 등)과 이유, 배출 시 주의사항을 친절하고 핵심만 요약해서 3줄 이내로 답변해주세요.
+                
+                물품: {user_query}
+                """
+                
+                with st.spinner("AI가 올바른 배출 방법을 확인 중입니다..."):
+                    response = model.generate_content(prompt)
+                    st.success("💡 AI 배출 가이드 답변")
+                    st.write(response.text)
+                    
+            except Exception as e:
+                st.error(f"API 호출 중 오류가 발생했습니다: {str(e)}")
