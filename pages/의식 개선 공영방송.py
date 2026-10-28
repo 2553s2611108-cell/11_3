@@ -1,210 +1,141 @@
-import os
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from gtts import gTTS
+import io
 
-# Page Configuration
+# 1. 페이지 기본 설정
 st.set_page_config(
-    page_title="우리아파트 분리배출 공영방송",
+    page_title="아파트 쓰레기 배출 안내 방송 생성기",
     page_icon="📢",
     layout="wide"
 )
 
-# App Title & Header
-st.title("📢 우리아파트 Clean-Up 공영방송")
-st.caption("주민 모두가 함께 만드는 올바른 분리배출 문화 챌린지")
+# 2. Gemini API 클라이언트 초기화 함수
+def get_gemini_client():
+    if "GEMINI_API_KEY" not in st.secrets:
+        st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되지 않았습니다. Secrets 설정을 확인해 주세요.")
+        st.stop()
+    return genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-# Sidebar Menu
-st.sidebar.header("📺 방송국 채널 선택")
-menu = st.sidebar.radio(
-    "이동할 메뉴를 선택하세요:",
+# 3. 메인 화면 헤더
+st.title("📢 아파트 쓰레기 배출 의식 개선 공영방송 도우미")
+st.caption("올바른 쓰레기 배출 문화를 위한 맞춤형 아침 방송 원고 및 음성 생성 서비스")
+st.markdown("---")
+
+# 4. 사이드바 - 방송 설정 입력
+st.sidebar.header("🎛️ 방송 설정")
+
+topic = st.sidebar.selectbox(
+    "방송 주제/이슈 선택",
     [
-        "📺 오늘의 방송 (메인)",
-        "🔍 분리배출 가이드",
-        "🧩 분리배출 O/X 퀴즈",
-        "📸 주민 실천 인증 게시판",
-        "🤖 AI 분리배출 상담소"
+        "재활용품 올바른 분리배출 안내 (페트박스, 라벨 제거 등)",
+        "음식물 쓰레기 물기 제거 및 배출 방법",
+        "대형 폐기물 스티커 부착 및 무단투기 방지",
+        "종량제 봉투 정량 사용 및 지정 장소 배출",
+        "주말/연휴 끝 올바른 쓰레기장 이용 매너",
+        "직접 입력"
     ]
 )
 
-# -------------------------------------------------------------------
-# 1. 메인 방송 (대시보드)
-# -------------------------------------------------------------------
-if menu == "📺 오늘의 방송 (메인)":
-    st.subheader("📡 오늘의 아파트 환경 방송")
-    
-    st.info("""
-    **[안내 방송]** 
-    주민 여러분, 안녕하십니까! 아파트 환경 관리 방송국입니다. 
-    오늘도 올바른 분리배출을 통해 깨끗한 우리 아파트와 지구를 만드는데 동참해주세요!
-    - **오늘의 강조사항**: 라벨 제거하지 않은 투명 페트병은 재활용이 불가능합니다. 꼭 라벨을 떼서 배출해주세요!
-    """)
-    
-    col1, col2, col3 = st.st.columns(3) if hasattr(st, 'st') else st.columns(3)
-    col1.metric("오늘의 올바른 배출률", "82%", "+5%")
-    col2.metric("이번 달 챌린지 참여 수", "142건", "+12건")
-    col3.metric("절감된 폐기물 비용", "약 450,000원", "목표 달성 중")
+if topic == "직접 입력":
+    custom_topic = st.sidebar.text_input("원하는 방송 주제를 입력하세요", placeholder="예: 박스 테이프 제거 후 배출 안내")
+else:
+    custom_topic = topic
 
-    st.markdown("---")
-    st.subheader("💡 3대 핵심 배출 수칙 (비·행·분·섞)")
-    
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.success("1. 비운다")
-        st.caption("용기 안의 내용물을 깨끗이 비워주세요.")
-    with c2:
-        st.info("2. 헹군다")
-        st.caption("이물질이나 음식물은 물로 헹궈주세요.")
-    with c3:
-        st.warning("3. 분리한다")
-        st.caption("라벨, 뚜껑 등 다른 재질은 분리해주세요.")
-    with c4:
-        st.error("4. 섞지 않는다")
-        st.caption("종류별, 재질별로 구분하여 배출해주세요.")
+tone = st.sidebar.radio(
+    "방송 어조 선택",
+    ["정중하고 친절한 어조", "밝고 활기찬 어조", "단호하고 명확한 어조 (계도용)"]
+)
 
-# -------------------------------------------------------------------
-# 2. 분리배출 가이드
-# -------------------------------------------------------------------
-elif menu == "🔍 분리배출 가이드":
-    st.subheader("🔍 품목별 올바른 배출 방법")
-    
-    guide_data = {
-        "투명 페트병": "내용물 비우기 ➔ 라벨 제거 ➔ 압착 후 뚜껑 닫아서 **전용 수거함**에 배출",
-        "플라스틱류": "내용물 비우고 헹군 후 배출 (부속품 등 다른 재질은 제거)",
-        "종이팩/우유팩": "내용물 헹구기 ➔ 펼쳐서 말리기 ➔ 일반 종이류와 **구분하여 전용함**에 배출",
-        "스티로폼": "흰색 스티로폼 상자만 가능. 운송장 스티커, 테이프 완전히 제거 후 배출 (컵라면 용기는 씻어도 종량제 봉투)",
-        "비닐류": "내용물 비우고 깨끗이 씻어 배출 (이물질 안 닦이면 종량제 봉투)",
-        "유리병": "담배꽁초 등 이물질 넣지 않기 ➔ 깨진 유리는 신문지에 싸서 **종량제 봉투/특량제 봉투**"
-    }
-    
-    search_term = st.text_input("찾고 싶은 품목을 검색하세요 (예: 페트병, 스티로폼, 종이팩):")
-    
-    st.markdown("---")
-    for item, guide in guide_data.items():
-        if search_term == "" or search_term.lower() in item.lower():
-            with st.expander(f"📦 {item}"):
-                st.write(guide)
+target_length = st.sidebar.select_slider(
+    "방송 분량 (예상 소요 시간)",
+    options=["30초 분량 (간결함)", "1분 분량 (적당함)", "1분 30초 분량 (상세함)"],
+    value="1분 분량 (적당함)"
+)
 
-# -------------------------------------------------------------------
-# 3. 분리배출 O/X 퀴즈
-# -------------------------------------------------------------------
-elif menu == "🧩 분리배출 O/X 퀴즈":
-    st.subheader("🧩 착각하기 쉬운 분리배출 O/X 퀴즈")
-    st.write("퀴즈를 통해 잘못 알고 있던 분리배출 상식을 바로잡아 보세요!")
-    
-    quizzes = [
-        {
-            "question": "1. 깨끗하게 씻은 컵라면 스티로폼 용기는 스티로폼으로 분리배출한다.",
-            "answer": "X",
-            "explanation": "해설: 라면 국물이 밴 스티로폼 용기는 재활용이 불가능하므로 일반 쓰레기(종량제 봉투)로 버려야 합니다."
-        },
-        {
-            "question": "2. 투명 페트병은 라벨을 제거하고 뚜껑을 닫아서 배출해도 된다.",
-            "answer": "O",
-            "explanation": "해설: 뚜껑은 페트병과 함께 압착 후 닫아서 배출해도 재활용 공정에서 선별 가능합니다. (단, 라벨은 반드시 제거해야 합니다)"
-        },
-        {
-            "question": "3. 씻지 않은 찌꺼기가 남은 비닐은 비닐류 수거함에 버려도 된다.",
-            "answer": "X",
-            "explanation": "해설: 이물질이나 음식물이 묻은 비닐은 재활용을 오염시키므로 일반 쓰레기로 버려야 합니다."
-        }
-    ]
-    
-    score = 0
-    with st.form("quiz_form"):
-        user_answers = []
-        for idx, q in enumerate(quizzes):
-            st.markdown(f"**{q['question']}**")
-            ans = st.radio(f"정답 선택 ({idx+1}번)", ["O", "X"], key=f"q_{idx}", horizontal=True)
-            user_answers.append(ans)
-            st.markdown("---")
-            
-        submitted = st.form_submit_button("정답 확인하기")
-        
-        if submitted:
-            st.subheader("📊 퀴즈 결과")
-            for idx, q in enumerate(quizzes):
-                if user_answers[idx] == q["answer"]:
-                    st.success(f"Q{idx+1}: 정답입니다! 🎉")
-                    score += 1
-                else:
-                    st.error(f"Q{idx+1}: 틀렸습니다. 😅 (선택: {user_answers[idx]} / 정답: {q['answer']})")
-                st.caption(q["explanation"])
-            
-            st.info(f"**총 점수: {score} / {len(quizzes)}점**")
+# 5. 메인 영역 - 원고 생성 버튼 및 결과 출력
+col1, col2 = st.columns([1, 1])
 
-# -------------------------------------------------------------------
-# 4. 주민 실천 인증 게시판
-# -------------------------------------------------------------------
-elif menu == "📸 주민 실천 인증 게시판":
-    st.subheader("📸 분리배출 실천 인증 & 노하우 공유")
-    st.write("올바른 분리배출 모습을 인증하고 깨끗한 아파트를 함께 만들어가요!")
+with col1:
+    st.subheader("📝 원고 생성 설정 확인")
+    st.write(f"• **주제:** {custom_topic}")
+    st.write(f"• **어조:** {tone}")
+    st.write(f"• **분량:** {target_length}")
     
-    # Session state initialization for posts
-    if "posts" not in st.session_state:
-        st.session_state.posts = [
-            {"name": "101동 주민", "content": "오늘 투명 페트병 라벨 싹 떼고 압착해서 버렸습니다! 뿌듯하네요.", "likes": 5},
-            {"name": "203동 주민", "content": "택배 상자 테이프랑 운송장 스티커 꼭 제거하고 버립시다!", "likes": 8}
-        ]
-        
-    with st.form("post_form"):
-        author = st.text_input("작성자 (예: 105동 주민)", max_chars=20)
-        content = st.text_area("인증 내용 및 나만의 분리배출 팁", max_chars=200)
-        submit_post = st.form_submit_button("인증글 등록하기")
-        
-        if submit_post:
-            if author and content:
-                st.session_state.posts.insert(0, {"name": author, "content": content, "likes": 0})
-                st.success("인증글이 성공적으로 등록되었습니다!")
-                st.rerun()
-            else:
-                st.warning("작성자와 내용을 모두 입력해주세요.")
-                
-    st.markdown("---")
-    st.subheader("💬 주민 참여 피드")
-    
-    for idx, post in enumerate(st.session_state.posts):
-        with st.container():
-            st.markdown(f"**👤 {post['name']}**")
-            st.write(post['content'])
-            col_like, _ = st.columns([1, 5])
-            if col_like.button(f"❤️ 응원하기 ({post['likes']})", key=f"like_{idx}"):
-                post['likes'] += 1
-                st.rerun()
-            st.markdown("---")
+    generate_btn = st.button("✨ 방송 원고 & 음성 생성하기", use_container_width=True, type="primary")
 
-# -------------------------------------------------------------------
-# 5. AI 분리배출 상담소
-# -------------------------------------------------------------------
-elif menu == "🤖 AI 분리배출 상담소":
-    st.subheader("🤖 Gemini AI 분리배출 도우미")
-    st.write("버리기 애매하거나 헷갈리는 물품의 이름을 입력하시면 올바른 배출 방법을 알려드립니다.")
-    
-    # Gemini API Setup
-    api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    
-    user_query = st.text_input("질문할 품목을 입력하세요 (예: 코팅된 전단지, 깨진 유리컵, 스프링 노트):")
-    
-    if st.button("AI에게 물어보기"):
-        if not api_key:
-            st.error("Secrets 설정에 'GEMINI_API_KEY'가 설정되어 있지 않습니다. Streamlit Cloud의 Secrets에 API 키를 등록해주세요.")
-        elif not user_query:
-            st.warning("질문할 물품을 입력해주세요.")
-        else:
+# 세션 상태 초기화 (결과 유지용)
+if "script_text" not in st.session_state:
+    st.session_state.script_text = ""
+if "audio_bytes" not in st.session_state:
+    st.session_state.audio_bytes = None
+
+if generate_btn:
+    if not custom_topic.strip():
+        st.warning("방송 주제를 입력해 주세요.")
+    else:
+        with st.spinner("Gemini가 명확하고 친근한 방송 원고를 작성하고 있습니다..."):
             try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                client = get_gemini_client()
                 
+                # 프롬프트 구성
                 prompt = f"""
-                당신은 아파트 분리배출 전문 안내 AI입니다.
-                다음 물품의 올바른 분리배출 방법(종량제 봉투 / 재활용 / 특수배출 등)과 이유, 배출 시 주의사항을 친절하고 핵심만 요약해서 3줄 이내로 답변해주세요.
-                
-                물품: {user_query}
+                당신은 아파트 관리사무소의 공영방송 담당자입니다.
+                입주민들의 쓰레기 배출 의식을 개선하고 올바른 분리수거를 독려하기 위한 아침 방송 원고를 작성해 주세요.
+
+                [조건]
+                1. 주제: {custom_topic}
+                2. 방송 어조: {tone}
+                3. 분량: {target_length}
+                4. 아파트 아침 공영방송에 어울리는 인사말과 마무리를 포함할 것.
+                5. 듣는 입주민이 불쾌하지 않으면서도 핵심 수칙을 명확히 이해할 수 있도록 구성할 것.
+                6. 실제 방송에서 그대로 읽을 수 있는 대본 형식(괄호 안의 효과음이나 지시문 제외)으로만 작성할 것.
                 """
                 
-                with st.spinner("AI가 올바른 배출 방법을 확인 중입니다..."):
-                    response = model.generate_content(prompt)
-                    st.success("💡 AI 배출 가이드 답변")
-                    st.write(response.text)
-                    
+                # Gemini 2.5 Flash Lite 모델 호출
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash-lite',
+                    contents=prompt
+                )
+                
+                script = response.text.strip()
+                st.session_state.script_text = script
+
+                # gTTS를 활용하여 음성 파일 생성
+                tts = gTTS(text=script, lang='ko')
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                fp.seek(0)
+                st.session_state.audio_bytes = fp.read()
+
+                st.success("방송 원고 및 음성이 성공적으로 생성되었습니다!")
+
             except Exception as e:
-                st.error(f"API 호출 중 오류가 발생했습니다: {str(e)}")
+                st.error(f"오류가 발생했습니다: {e}")
+
+# 결과 출력 영역
+with col2:
+    st.subheader("🎙️ 생성된 방송 원고 & 음성")
+    if st.session_state.script_text:
+        # 원고 출력
+        st.text_area("방송 원고 (복사하여 사용 가능)", value=st.session_state.script_text, height=280)
+        
+        # 음성 오디오 플레이어
+        if st.session_state.audio_bytes:
+            st.markdown("##### 🔊 방송 음성 미리듣기")
+            st.audio(st.session_state.audio_bytes, format="audio/mp3")
+            
+            # 음성 파일 다운로드 버튼
+            st.download_button(
+                label="📥 MP3 음성 파일 다운로드",
+                data=st.session_state.audio_bytes,
+                file_name="morning_announcement.mp3",
+                mime="audio/mp3"
+            )
+    else:
+        st.info("왼쪽의 [방송 원고 & 음성 생성하기] 버튼을 눌러주세요.")
+
+# 하단 도움말
+st.markdown("---")
+st.markdown("💡 **팁**: 방송 전 음성 오디오를 미리 들어보며 속도와 억양을 확인해 보세요. 작성된 원고를 텍스트 박스에서 직접 수정하여 사용할 수도 있습니다.")
+  
