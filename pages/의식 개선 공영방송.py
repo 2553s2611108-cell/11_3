@@ -45,5 +45,7 @@ st.markdown("""
         color: white !important;
         border-radius: 25px !important;
         border: none !important;
-        
+       streamlit>=1.30.0
+google-generativeai>=0.4.0
+ 
 
