@@ -70,5 +70,4 @@ if "broadcast_log" not in st.session_state:
 # 사이드바
 st.sidebar.header("🎙️ 방송국 제어판")
 menu =
-streamlit>=1.30.0
-google-generativeai>=0.4.0
+GEMINI_API_KEY = "발급받은_Gemini_API_Key"
