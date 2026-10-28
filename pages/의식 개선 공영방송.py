@@ -207,4 +207,3 @@ elif menu == "📜 방송 송출 기록":
         for log in st.session_state.broadcast_log:
             with st.expander(f"🕒 [{log['time']}] {log['title']}"):
                 st.write(log['content'])
-GEMINI_API_KEY = "your_actual_api_key_here"
