@@ -1,7 +1,7 @@
 import streamlit as st
 
 # -----------------------------------------------------------------------------
-# 1. 기본 설정 및 디자인 CSS
+# 1. 페이지 기본 설정
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="분리수거ON - 아파트 동별 ecoScore",
@@ -9,29 +9,31 @@ st.set_page_config(
     layout="wide"
 )
 
-st.markdown("""
-    <style>
-    .main-title { color: #2E7D32; font-weight: 800; margin-bottom: 0px; }
-    .sub-title { color: #666; font-size: 0.95rem; margin-bottom: 15px; }
-    .podium-card {
-        border-radius: 16px; padding: 20px; text-align: center;
-        background-color: #ffffff; border: 1px solid #E0E0E0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }
-    .podium-1 { border: 2px solid #FFD54F; background: #FFFDF0; }
-    .rank-badge {
-        font-weight: bold; padding: 4px 12px; border-radius: 12px; color: white; display: inline-block; margin-bottom: 8px;
-    }
-    .rank-1 { background-color: #FFB300; }
-    .rank-2 { background-color: #90A4AE; }
-    .rank-3 { background-color: #BCAAA4; }
-    .dong-analysis-card {
-        background-color: #ffffff; border: 1px solid #EAEAEA;
-        border-radius: 16px; padding: 20px; margin-bottom: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-    }
-    </style>
-""", unsafe_allow_html=True)
+# 커스텀 CSS 스타일링
+css_style = """
+<style>
+.main-title { color: #2E7D32; font-weight: 800; margin-bottom: 0px; }
+.sub-title { color: #666; font-size: 0.95rem; margin-bottom: 15px; }
+.podium-card {
+    border-radius: 16px; padding: 20px; text-align: center;
+    background-color: #ffffff; border: 1px solid #E0E0E0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+.podium-1 { border: 2px solid #FFD54F; background: #FFFDF0; }
+.rank-badge {
+    font-weight: bold; padding: 4px 12px; border-radius: 12px; color: white; display: inline-block; margin-bottom: 8px;
+}
+.rank-1 { background-color: #FFB300; }
+.rank-2 { background-color: #90A4AE; }
+.rank-3 { background-color: #BCAAA4; }
+.dong-analysis-card {
+    background-color: #ffffff; border: 1px solid #EAEAEA;
+    border-radius: 16px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+</style>
+"""
+st.markdown(css_style, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
 # 2. 세션 상태 데이터 초기화 (이번 달 & 저번 달)
@@ -132,7 +134,7 @@ with tab1:
     st.caption("잘못 버린 쓰레기 항목을 누르시면 올바른 분리배출 방법을 확인하실 수 있습니다.")
 
     for rank, (dong_name, data) in enumerate(sorted_dongs, 1):
-        st.markdown(f"<div class='dong-analysis-card'>", unsafe_allow_html=True)
+        st.markdown("<div class='dong-analysis-card'>", unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns([1.5, 1.2, 1.2, 2.8])
         
         with c1:
