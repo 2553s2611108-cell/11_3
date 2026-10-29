@@ -9,46 +9,135 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. 커스텀 CSS (공영방송 뉴스 스타일 적용)
+# 2. 커스텀 CSS (모바일 앱 스타일 디자인 적용)
 st.markdown("""
     <style>
-    .main-header {
-        background: linear-gradient(90deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+    /* 전체 배경 및 폰트 설정 */
+    .stApp {
+        background-color: #F8F9FA;
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+    
+    /* 사이드바 스타일링 */
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF;
+        border-right: 1px solid #EAEAEA;
+    }
+
+    /* 메인 헤더 카드 */
+    .app-header {
+        background: linear-gradient(135deg, #FF6B35 0%, #FF8811 100%);
         color: white;
-        padding: 20px;
-        border-radius: 10px;
+        padding: 24px 20px;
+        border-radius: 20px;
         text-align: center;
-        font-size: 26px;
-        font-weight: bold;
+        box-shadow: 0px 8px 20px rgba(255, 107, 53, 0.15);
+        margin-bottom: 12px;
+    }
+    .app-header h2 {
+        color: #FFFFFF;
+        margin: 0;
+        font-size: 24px;
+        font-weight: 800;
+    }
+    
+    /* 긴급 자막/알림 바 */
+    .news-ticker {
+        background-color: #FFF3EB;
+        color: #D9381E;
+        padding: 12px 18px;
+        font-weight: 700;
+        font-size: 14px;
+        border-radius: 14px;
+        border: 1px solid #FFE2D1;
+        margin-bottom: 25px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* 콘텐츠 카드 스타일 */
+    .content-card {
+        background-color: #FFFFFF;
+        padding: 20px;
+        border-radius: 18px;
+        border: 1px solid #EFEFEF;
+        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.03);
+        margin-bottom: 16px;
+    }
+    
+    /* 고충 및 지침 카드 (레드 & 블루/오렌지 포인트) */
+    .danger-card {
+        background-color: #FFF5F5;
+        border: 1px solid #FFE3E3;
+        border-left: 6px solid #FF4D4D;
+        padding: 18px;
+        border-radius: 16px;
         margin-bottom: 15px;
     }
-    .sub-header {
-        background-color: #cc0000;
-        color: white;
-        padding: 8px 15px;
+    .danger-card h4 {
+        color: #E03131;
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 16px;
+    }
+
+    .info-card {
+        background-color: #F0F9FF;
+        border: 1px solid #E0F2FE;
+        border-left: 6px solid #0EA5E9;
+        padding: 18px;
+        border-radius: 16px;
+        margin-bottom: 15px;
+    }
+    .info-card h4 {
+        color: #0284C7;
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 16px;
+    }
+
+    /* 커스텀 버튼 디자인 */
+    .stButton > button {
+        background: linear-gradient(135deg, #FF6B35 0%, #FF8811 100%);
+        color: white !important;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-weight: 700;
+        font-size: 16px;
+        width: 100%;
+        box-shadow: 0px 4px 12px rgba(255, 107, 53, 0.2);
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0px 6px 16px rgba(255, 107, 53, 0.3);
+    }
+
+    /* 응원 메시지 리스트 카운터/카드 */
+    .cheer-card {
+        background-color: #FFFFFF;
+        padding: 16px;
+        border-radius: 14px;
+        border: 1px solid #EAEAEA;
+        margin-bottom: 12px;
+        box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.02);
+    }
+    .cheer-name {
+        color: #FF6B35;
         font-weight: bold;
         font-size: 15px;
-        border-radius: 5px;
-        margin-bottom: 25px;
+        margin-bottom: 4px;
     }
-    .info-box {
-        background-color: #f8f9fa;
-        padding: 18px;
-        border-radius: 8px;
-        border-left: 5px solid #203a43;
-        margin-bottom: 15px;
-    }
-    .danger-box {
-        background-color: #fff3cd;
-        padding: 18px;
-        border-radius: 8px;
-        border-left: 5px solid #ffc107;
-        margin-bottom: 15px;
+    .cheer-msg {
+        color: #495057;
+        font-size: 14px;
+        line-height: 1.5;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 세션 상태 안전하게 초기화 (NameError 방지)
+# 3. 세션 상태 안전하게 초기화
 if "cheer_messages" not in st.session_state:
     st.session_state["cheer_messages"] = [
         {"name": "101동 주민", "msg": "상자 테이프 항상 떼고 버릴게요. 매번 고생 많으십니다!"},
@@ -56,8 +145,18 @@ if "cheer_messages" not in st.session_state:
     ]
 
 # 4. 상단 타이틀 & 속보 자막
-st.markdown("<div class='main-header'>📺 K-공영방송 [특별기획] 아파트 경비원 아저씨의 분리배출 고충 센터</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-header'>🚨 [긴급 보도] 혼합 배출로 지자체 수거 거부 속출... 경비원 80% 이상이 재분류 작업으로 심각한 고충 호소</div>", unsafe_allow_html=True)
+st.markdown("""
+    <div class='app-header'>
+        <h2>📺 K-공영방송 [특별기획]</h2>
+        <p style='margin: 5px 0 0 0; opacity: 0.9; font-size: 15px;'>아파트 경비원 아저씨의 분리배출 고충 센터</p>
+    </div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+    <div class='news-ticker'>
+        🚨 <b>[긴급 보도]</b> &nbsp; 혼합 배출로 지자체 수거 거부 속출... 경비원 80% 이상이 재분류 작업으로 심각한 고충 호소
+    </div>
+""", unsafe_allow_html=True)
 
 # 5. 사이드바 메뉴
 st.sidebar.title("📺 방송 프로그램")
@@ -115,106 +214,27 @@ elif menu == "2. [밀착 취재] 경비원을 괴롭히는 5대 배출 실수":
     if selected == "1. 테이프·송장이 붙은 택배 박스":
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("<div class='danger-box'><h4>❌ 경비원 아저씨의 고충</h4><p>수거 업체에서 테이프 부착 건은 전량 수거를 거부합니다. 결국 경비원분이 칼을 들고 일일이 테이프를 뜯어내야 합니다.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='danger-card'><h4>❌ 경비원 아저씨의 고충</h4><p>수거 업체에서 테이프 부착 건은 전량 수거를 거부합니다. 결국 경비원분이 칼을 들고 일일이 테이프를 뜯어내야 합니다.</p></div>", unsafe_allow_html=True)
         with c2:
-            st.markdown("<div class='info-box'><h4>✅ 주민 올바른 수칙</h4><p><b>테이프와 운송장은 완전히 제거</b>한 후, 박스를 납작하게 접어서 종이류 수거함에 배출해주세요.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='info-card'><h4>✅ 주민 올바른 수칙</h4><p><b>테이프와 운송장은 완전히 제거</b>한 후, 박스를 납작하게 접어서 종이류 수거함에 배출해주세요.</p></div>", unsafe_allow_html=True)
 
     elif selected == "2. 양념이 묻은 배달 플라스틱 용기":
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("<div class='danger-box'><h4>❌ 경비원 아저씨의 고충</h4><p>악취와 벌레를 유발하고 주변 깨끗한 재활용품까지 오염시킵니다. 경비원분이 직접 수세미로 닦거나 일반 쓰레기로 옮겨 담습니다.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='danger-card'><h4>❌ 경비원 아저씨의 고충</h4><p>악취와 벌레를 유발하고 주변 깨끗한 재활용품까지 오염시킵니다. 경비원분이 직접 수세미로 닦거나 일반 쓰레기로 옮겨 담습니다.</p></div>", unsafe_allow_html=True)
         with c2:
-            st.markdown("<div class='info-box'><h4>✅ 주민 올바른 수칙</h4><p>물로 깨끗이 헹궈서 배출하고, <b>착색되어 지워지지 않는 용기는 일반쓰레기(종량제 봉투)</b>로 버려주세요.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='info-card'><h4>✅ 주민 올바른 수칙</h4><p>물로 깨끗이 헹궈서 배출하고, <b>착색되어 지워지지 않는 용기는 일반쓰레기(종량제 봉투)</b>로 버려주세요.</p></div>", unsafe_allow_html=True)
 
     elif selected == "3. 라벨이 붙어있는 투명 페트병":
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("<div class='danger-box'><h4>❌ 경비원 아저씨의 고충</h4><p>투명 페트병 별도 배출제로 인해 라벨이 붙어있으면 아파트 전체에 과태료가 부과될 수 있어 일일이 손으로 제거합니다.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='danger-card'><h4>❌ 경비원 아저씨의 고충</h4><p>투명 페트병 별도 배출제로 인해 라벨이 붙어있으면 아파트 전체에 과태료가 부과될 수 있어 일일이 손으로 제거합니다.</p></div>", unsafe_allow_html=True)
         with c2:
-            st.markdown("<div class='info-box'><h4>✅ 주민 올바른 수칙</h4><p><b>비닐 라벨을 뜯어 비닐류에 버리고</b>, 페트병은 찌그러뜨린 후 뚜껑을 닫아 전용 수거함에 넣어주세요.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='info-card'><h4>✅ 주민 올바른 수칙</h4><p><b>비닐 라벨을 뜯어 비닐류에 버리고</b>, 페트병은 찌그러뜨린 후 뚜껑을 닫아 전용 수거함에 넣어주세요.</p></div>", unsafe_allow_html=True)
 
     elif selected == "4. 신문지 없이 버린 깨진 유리병":
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("<div class='danger-box'><h4>❌ 경비원 아저씨의 고충</h4><p>마대 자루를 정돈하거나 수거하는 과정에서 날카로운 유리에 손이나 다리를 베이는 인명 사고가 자주 발생합니다.</p></div>", unsafe_allow_html=True)
+            st.markdown("<div class='danger-card'><h4>❌ 경비원 아저씨의 고충</h4><p>마대 자루를 정돈하거나 수거하는 과정에서 날카로운 유리에 손이나 다리를 베이는 인명 사고가 자주 발생합니다.</p></div>", unsafe_allow_html=True)
         with c2:
-            st.markdown("<div class='info-box'><h4>✅ 주민 올바른 수칙</h4><p>깨진 유리는 <b>신문지나 두꺼운 종이로 겹겹이 싸서</b> 불연성 마대(특수 종량제 봉투)에 담아 배출해 주세요.</p></div>", unsafe_allow_html=True)
-
-    elif selected == "5. 종량제 봉투에 넣은 폐건전지":
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("<div class='danger-box'><h4>❌ 경비원 아저씨의 고충</h4><p>청소차나 압축 과정에서 폭발 및 화재가 발생하여 경비원 및 수거 기사의 안전을 심각하게 위협합니다.</p></div>", unsafe_allow_html=True)
-        with c2:
-            st.markdown("<div class='info-box'><h4>✅ 주민 올바른 수칙</h4><p>폐건전지는 절대로 일반 쓰레기에 버리지 마시고 <b>관리사무소나 동별 폐건전지 전용 수거함</b>에 넣어주세요.</p></div>", unsafe_allow_html=True)
-
-# ----------------------------------------------------
-# 3. 주민 참여
-# ----------------------------------------------------
-elif menu == "3. [주민 참여] 나의 분리배출 양심 지수":
-    st.subheader("🧩 [자가진단] 나는 경비원 아저씨께 어떤 주민일까요?")
-    st.write("3가지 질문에 답하고 나의 분리배출 점수를 확인해 보세요.")
-    
-    q1 = st.radio("1. 택배 박스를 버릴 때 비닐 테이프와 운송장을 제거하나요?", ["선택하세요", "항상 제거한다", "가끔 그대로 버린다", "전혀 신경 안 쓴다"], key="q1")
-    q2 = st.radio("2. 컵라면/배달 용기 양념이 안 지워질 때 어떻게 버리나요?", ["선택하세요", "종량제 봉투(일반쓰레기)에 버린다", "그냥 플라스틱/스티로폼 수거함에 넣는다"], key="q2")
-    q3 = st.radio("3. 투명 페트병 버릴 때 비닐 라벨을 떼어내나요?", ["선택하세요", "네, 반드시 떼어서 버립니다", "아니오, 붙은 채로 버립니다"], key="q3")
-    
-    st.markdown("---")
-    if st.button("양심 지수 결과 확인하기"):
-        if q1 == "선택하세요" or q2 == "선택하세요" or q3 == "선택하세요":
-            st.error("⚠️ 모든 질문에 답변을 선택해 주세요.")
-        else:
-            score = 0
-            if q1 == "항상 제거한다":
-                score += 30
-            if q2 == "종량제 봉투(일반쓰레기)에 버린다":
-                score += 35
-            if q3 == "네, 반드시 떼어서 버립니다":
-                score += 35
-                
-            with st.spinner("분석 중..."):
-                time.sleep(0.4)
-            
-            st.markdown(f"### 📊 나의 점수: **{score}점 / 100점**")
-            
-            if score == 100:
-                st.balloons()
-                st.success("🌟 **[100점 Perfect] 경비원 아저씨가 감사해하는 최고의 모범 주민입니다!**")
-            elif score >= 60:
-                st.warning("🙂 **[보통] 조금만 더 신경 써 주세요!** 경비원 아저씨의 손길이 한 번 더 가고 있습니다.")
-            else:
-                st.error("🚨 **[경고] 경비원 아저씨의 업무 부담을 크게 증가시키고 있습니다.** 올바른 배출법을 실천해 주세요!")
-
-# ----------------------------------------------------
-# 4. 공익 캠페인 (안전한 접근 처리)
-# ----------------------------------------------------
-elif menu == "4. [공익 캠페인] 경비원 아저씨 응원 게시판":
-    st.subheader("💌 경비원 아저씨께 전하는 응원과 실천 다짐")
-    
-    with st.form(key="cheer_form_clean", clear_on_submit=True):
-        input_name = st.text_input("동/호수 또는 닉네임", placeholder="예: 101동 주민")
-        input_msg = st.text_area("응원 메시지", placeholder="예: 늘 고생 많으십니다. 박스 테이프 꼭 떼고 버릴게요!")
-        submitted = st.form_submit_button("메시지 등록")
-        
-        if submitted:
-            if not input_name.strip() or not input_msg.strip():
-                st.warning("⚠️ 닉네임과 메시지를 모두 입력해 주세요.")
-            else:
-                st.session_state["cheer_messages"].insert(0, {"name": input_name, "msg": input_msg})
-                st.success("🎉 응원 메시지가 성공적으로 등록되었습니다!")
-
-    st.markdown("---")
-    st.markdown("### 📢 주민 응원 전광판")
-    
-    # 세션 메시지 안전하게 렌더링
-    cheer_list = st.session_state.get("cheer_messages", [])
-    for msg_data in cheer_list:
-        st.markdown(f"""
-        <div style='background-color:#ffffff; padding:12px; border-radius:6px; margin-bottom:10px; border:1px solid #e0e0e0;'>
-            <strong style='color:#203a43;'>💙 {msg_data.get('name', '익명')}</strong><br>
-            <span style='color:#333333;'>{msg_data.get('msg', '')}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-# 하단 푸터
-st.markdown("---")
-st.caption("📺 K-공영방송 | 아파트 경비원 분리배출 환경 개선 및 주민 의식 제고를 위한 공익 앱입니다.")
+            st.markdown("<div class='info-card'><h4>✅ 주민
